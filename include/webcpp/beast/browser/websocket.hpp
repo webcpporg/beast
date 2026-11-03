@@ -104,6 +104,7 @@ struct queue_limits {
     std::size_t send = 4 * 1024 * 1024;
     /**
      Maximum retained payload plus message-record bytes in Wasm, defaulting to 4 MiB.
+
      Includes browser arrivals awaiting executor dispatch, even while the context is stopped.
      */
     std::size_t receive = 4 * 1024 * 1024;

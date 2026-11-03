@@ -216,18 +216,23 @@ def tls_context(directory, server=False):
     return context
 
 
-def connect(port, path=None, context=None, deadline=5):
+def connect(port, path=None, context=None, deadline=5, process=None):
     until = time.monotonic() + deadline
     while True:
+        if process is not None and process.poll() is not None:
+            raise RuntimeError(f"listener exited before readiness: status {process.returncode}")
         peer = socket.socket(socket.AF_UNIX if path else socket.AF_INET)
         peer.settimeout(5)
         try:
             peer.connect(str(path) if path else ("127.0.0.1", port))
             return context.wrap_socket(peer, server_hostname="localhost") if context else peer
-        except (ConnectionRefusedError, FileNotFoundError):
+        except (ConnectionRefusedError, FileNotFoundError) as error:
             peer.close()
             if time.monotonic() >= until:
-                raise
+                endpoint = path if path else f"127.0.0.1:{port}"
+                raise TimeoutError(
+                    f"listener {endpoint} was not ready within {deadline} seconds"
+                ) from error
             time.sleep(0.02)
 
 
@@ -281,10 +286,15 @@ def drive_server(row, executable, directory, environment, command_prefix):
         executable, server_arguments(row, port, directory, path), directory, environment)
     process = subprocess.Popen(command, cwd=directory, env=environment,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Wasmtime compiles the component before it can listen. Keep that startup
+    # allowance separate from each five-second protocol exchange.
+    startup_budget = 15 if executable.suffix == ".wasm" else 5
+    startup_started = time.monotonic()
     result = []
     try:
         context = tls_context(directory) if row["tls"] else None
-        with contextlib.closing(connect(port, path, context)) as peer:
+        with contextlib.closing(connect(port, path, context, startup_budget, process)) as peer:
+            startup_seconds = time.monotonic() - startup_started
             name = row["id"]
             if name == "echo-op":
                 peer.sendall(PAYLOAD)
@@ -358,6 +368,8 @@ def drive_server(row, executable, directory, environment, command_prefix):
         allowed = (0,) if graceful else (0, 1) if os.name == "nt" else (0, -signal.SIGTERM)
         assert process.returncode in allowed, (row["id"], process.returncode, errors)
     return {"command": command, "exchanges": result,
+            "startup_seconds": startup_seconds, "startup_budget_seconds": startup_budget,
+            "exchange_timeout_seconds": 5,
             "shutdown": "driver terminated and reaped listener"}
 
 
