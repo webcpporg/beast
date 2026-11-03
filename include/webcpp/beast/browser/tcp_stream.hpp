@@ -168,9 +168,9 @@ public:
      @return A reference to this authority record.
      */
     // lint-std: Beast basic_stream::socket returns its lowest transport layer
-    [[nodiscard]] const tcp_stream& socket() const noexcept {
+    [[nodiscard]] const tcp_stream& socket() const noexcept {  // lint-world: authority facade only
         return *this;
-    }  // lint-world: authority facade only
+    }
 
     /**
      Reports whether a connection authority has been recorded.

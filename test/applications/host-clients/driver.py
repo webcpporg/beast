@@ -8,6 +8,7 @@
 
 import http.client
 import http.server
+import importlib.abc
 import importlib.util
 import json
 import os
@@ -22,7 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import serve
 specification = importlib.util.spec_from_file_location(
     "application_peers", Path(__file__).resolve().parent.parent / "driver.py")
-assert specification is not None and specification.loader is not None
+assert specification is not None
+assert isinstance(specification.loader, importlib.abc.InspectLoader)
 driver = importlib.util.module_from_spec(specification)
 specification.loader.exec_module(driver)
 

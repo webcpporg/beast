@@ -13,7 +13,7 @@ webcpp.original node ;
 webcpp.drive browser_contracts : .//browser_test
   : <dependency>browser_test.variants.json <webcpp-drive-timeout>120
   : run.mjs ;
-webcpp.lane browser : browser_contracts browser_allocations browser_lifecycle : emscripten ;
+webcpp.lane browser : browser_contracts browser_allocations browser_lifecycle browser_environment : emscripten ;
 
 # A facade may not cross a differently configured translation unit.
 webcpp.run config_boundary : config_provider.cpp config_consumer.cpp
@@ -41,5 +41,12 @@ webcpp.drive browser_lifecycle : .//lifecycle_test
 webcpp.drive node_lifecycle : .//lifecycle_test
   : <dependency>lifecycle_test.variants.json <webcpp-drive-timeout>120
   : node.mjs : --program lifecycle_test --expected "browser lifecycle: ok" ;
+
+# Browser-only policy evidence and yielding facade probes run from a
+# trusted HTTPS page.
+webcpp.variants environment_test : environment_test.cpp : <library>/webcpp/beast//browser ;
+webcpp.drive browser_environment : .//environment_test
+  : <dependency>environment_test.variants.json <webcpp-drive-timeout>120
+  : run.mjs : --program environment_test --expected "browser environment: ok" --environment ;
 
 build-project peer ;

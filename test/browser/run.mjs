@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Execute Beast contracts or tutorial variants against controlled HTTP and WebSocket peers.
-// node run.mjs [--program name] [--expected line] <artifact>
+// node run.mjs [--program name] [--expected line] [--environment] <artifact>
 // CHROME names full Chromium; on macOS the newest cached Playwright Chromium is used.
 // Each invocation owns its loopback server, Chrome process and temporary profile.
 import assert from 'node:assert/strict'
@@ -13,6 +13,7 @@ import {execFileSync, spawn} from 'node:child_process'
 import {once} from 'node:events'
 import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs'
 import {createServer} from 'node:http'
+import {createServer as createSecureServer} from 'node:https'
 import {startPeer} from './peer.mjs'
 import {homedir, tmpdir} from 'node:os'
 import {dirname, extname, join, resolve, sep} from 'node:path'
@@ -22,13 +23,15 @@ import {fileURLToPath} from 'node:url'
 const args = process.argv.slice(2)
 let program = 'browser_test'
 let expected = 'browser websocket and fetch: ok'
+let environment = false
 while (args[0]?.startsWith('--')) {
     const option = args.shift()
     if (option === '--program') program = args.shift()
     else if (option === '--expected') expected = args.shift()
+    else if (option === '--environment') environment = true
     else throw new Error(`unknown option ${option}`)
 }
-assert.equal(args.length, 1, 'usage: run.mjs [--program name] [--expected line] <artifact>')
+assert.equal(args.length, 1, 'usage: run.mjs [--program name] [--expected line] [--environment] <artifact>')
 const mode = 'beast'
 const here = dirname(fileURLToPath(import.meta.url))
 const build = dirname(resolve(args[0]))
@@ -49,7 +52,7 @@ const findChrome = () => {
     throw new Error('no cached full Chromium found; set CHROME')
 }
 
-const left = {chrome: null, profile: null, server: null, corsServer: null, peer: null, sockets: new Set()}
+const left = {chrome: null, profile: null, server: null, secureServer: null, secureOrigin: null, corsServer: null, peer: null, sockets: new Set()}
 const exited = child => child.exitCode !== null || child.signalCode !== null
 const signalChrome = (child, signal) => {
     if (!child.pid) return
@@ -85,6 +88,10 @@ const cleanUp = () => (cleaning ??= (async () => {
         left.server.closeAllConnections()
         await new Promise(resolve => left.server.close(resolve))
     }
+    if (left.secureServer) {
+        left.secureServer.closeAllConnections()
+        await new Promise(resolve => left.secureServer.close(resolve))
+    }
     if (left.corsServer) {
         left.corsServer.closeAllConnections()
         await new Promise(resolve => left.corsServer.close(resolve))
@@ -103,7 +110,7 @@ const startServer = async () => {
     left.corsServer.listen(0, '127.0.0.1')
     await once(left.corsServer, 'listening')
     const corsPort = String(left.corsServer.address().port)
-    const server = createServer((request, response) => {
+    const serve = (request, response) => {
         try {
             const path = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname)
             if (path === '/tls-control') {
@@ -117,7 +124,16 @@ const startServer = async () => {
             if (path === '/page.html') content = Buffer.from(content.toString().replace('<script type="module">', `<script>globalThis.beastCorsPort = '${corsPort}'; globalThis.beastPeerPort = '${left.peer.plain}'; globalThis.beastSecurePort = '${left.peer.secure}'</script><script type="module">`))
             response.writeHead(200, {'Content-Type': types[extname(file)] ?? 'application/octet-stream'}).end(content)
         } catch { response.writeHead(404).end() }
-    })
+    }
+    const server = createServer(serve)
+    if (environment) {
+        left.secureServer = createSecureServer({
+            key: readFileSync(left.peer.key), cert: readFileSync(left.peer.cert)
+        }, serve)
+        left.secureServer.listen(0, '127.0.0.1')
+        await once(left.secureServer, 'listening')
+        left.secureOrigin = `https://127.0.0.1:${left.secureServer.address().port}`
+    }
     left.server = server
     server.listen(0, '127.0.0.1')
     await once(server, 'listening')
@@ -136,7 +152,7 @@ const startChrome = async (trusted = true) => {
         '--headless=new', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0',
         `--user-data-dir=${left.profile}`, '--no-first-run', '--no-default-browser-check',
         '--disable-component-update', '--disable-background-networking', '--disable-sync',
-        '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1', 'about:blank'
+        '--host-resolver-rules=MAP mixed.beast.test 127.0.0.1, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1', 'about:blank'
     ], {stdio: ['ignore', 'ignore', 'pipe'], detached: process.platform !== 'win32'})
     left.chrome = chrome
     let error
@@ -211,6 +227,7 @@ const openPage = async (devtools, base, program, variant, url = `${base}/page.ht
     const pending = new Map()
     const problems = []
     const networkErrors = []
+    const networkFailures = []
     let id = 0
     const send = (method, params = {}) => new Promise((resolve, reject) => {
         const current = ++id
@@ -236,6 +253,9 @@ const openPage = async (devtools, base, program, variant, url = `${base}/page.ht
         }
         if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
             problems.push(message.params.args.map(arg => arg.value ?? arg.description).join(' '))
+        }
+        if (message.method === 'Network.loadingFailed') {
+            networkFailures.push(message.params)
         }
         if (message.method === 'Network.webSocketFrameError') {
             networkErrors.push(message.params.errorMessage)
@@ -274,6 +294,7 @@ const openPage = async (devtools, base, program, variant, url = `${base}/page.ht
     }
     return {
         networkErrors,
+        networkFailures,
         snapshot,
         async evaluate(expression) {
             const result = await send('Runtime.evaluate', {expression, awaitPromise: true, returnByValue: true})
@@ -312,6 +333,12 @@ try {
             assert.ok(Date.now() < deadline, 'TLS control page did not load')
             await delay(25)
         }
+        if (environment) {
+            const plain = `http://mixed.beast.test:${left.peer.plain}/http`
+            const body = await control.evaluate(`fetch(${JSON.stringify(plain)}).then(response => response.text())`)
+            assert.equal(body, 'fetch body', 'the mixed-content destination must work from an HTTP page')
+            console.log('browser mixed-content control: HTTP destination reachable from HTTP origin')
+        }
         const endpoint = `wss://127.0.0.1:${left.peer.secure}/echo`
         const result = await control.evaluate(`new Promise(resolve => {
             const socket = new WebSocket(${JSON.stringify(endpoint)});
@@ -329,10 +356,26 @@ try {
     }
     const devtools = await startChrome()
     for (const variant of ['jspi', 'asyncify']) {
-        const page = await openPage(devtools, base, program, variant)
+        const page = await openPage(devtools, environment ? left.secureOrigin : base, program, variant)
         try {
             const {report} = await page.waitFor(new RegExp('^' + expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'))
             assert.ok(report.lines.some(entry => entry.line === expected))
+            if (environment) {
+                for (const operation of ['http', 'websocket']) {
+                    const start = report.lines.find(entry => entry.line === `heartbeat ${operation}: start`)
+                    const finish = report.lines.find(entry => entry.line === `heartbeat ${operation}: finish`)
+                    assert.ok(start && finish, `${operation} synchronous wait interval was not reported`)
+                    const duration = finish.at - start.at
+                    assert.ok(duration >= 250 && duration < 3000,
+                        `${operation} native peer release took ${duration} ms`)
+                    const frames = report.frames.filter(at => at > start.at && at < finish.at).length
+                    assert.ok(frames >= 3, `only ${frames} animation callbacks during ${operation} synchronous wait`)
+                    console.log(`browser ${variant}: ${operation} synchronous read yielded ${frames} animation callbacks`)
+                }
+                assert.ok(page.networkFailures.some(failure => failure.blockedReason === 'mixed-content'),
+                    `Chrome did not identify the mixed-content block: ${JSON.stringify(page.networkFailures)}`)
+                console.log(`browser ${variant}: nested entry rejected; mixed content blocked`)
+            }
             console.log(`browser ${variant}: WebSocket and fetch contracts passed with isolated-profile CA trust`)
         } finally { await page.close() }
     }

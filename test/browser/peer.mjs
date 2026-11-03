@@ -58,6 +58,6 @@ export async function startPeer() {
         while (!output.includes('\n') && Date.now() < deadline && child.exitCode === null && !launchError) await delay(10)
         if (launchError) throw launchError
         assert.ok(output.includes('\n'), `native peer failed to announce ports: ${errors}`)
-        return {...JSON.parse(output.split('\n')[0]), ca: join(directory, 'ca.crt'), caDer: join(directory, 'ca.der'), stop}
+        return {...JSON.parse(output.split('\n')[0]), ca: join(directory, 'ca.crt'), caDer: join(directory, 'ca.der'), cert: join(directory, 'server.crt'), key: join(directory, 'server.key'), stop}
     } catch (error) { await stop(); throw error }
 }

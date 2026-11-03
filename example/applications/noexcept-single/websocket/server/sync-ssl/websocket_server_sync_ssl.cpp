@@ -15,6 +15,7 @@
 #include <webcpp/beast/ssl.hpp>
 #include <webcpp/beast/tcp_stream.hpp>
 #include <webcpp/beast/websocket.hpp>
+#include "close_observation.hpp"
 #include "failure.hpp"
 #include "fixture.hpp"
 #include "fixture_resolver.hpp"
@@ -77,7 +78,15 @@ void do_session(tcp::socket socket, ssl::context& ctx) {
             beast::flat_buffer buffer;
 
             // Read a message
-            ws.read(buffer);
+            beast::error_code read_error;
+            ws.read(buffer, read_error);
+            if (read_error == websocket::error::closed) {
+                webcpp_fixture::observe_normal_close();
+                return;
+            }
+            if (read_error) {
+                webcpp_fixture::fail_stop();
+            }
 
             // Echo the message back
             ws.text(ws.got_text());

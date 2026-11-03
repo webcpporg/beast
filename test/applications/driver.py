@@ -282,6 +282,11 @@ def drive_server(row, executable, directory, environment, command_prefix):
     port = available_port()
     path = directory / "server.sock" if row["local_socket"] else None
     environment["WEBCPP_BEAST_FIXTURE_PORT"] = str(port)
+    observe_close = row["id"] in ("websocket-server-sync", "websocket-server-sync-ssl") and \
+        executable.stem.startswith(("threaded-", "single-", "cooperative-"))
+    closed = directory / "session-closed"
+    if observe_close:
+        environment["WEBCPP_BEAST_FIXTURE_CLOSED"] = str(closed)
     command = command_prefix + application_command(
         executable, server_arguments(row, port, directory, path), directory, environment)
     process = subprocess.Popen(command, cwd=directory, env=environment,
@@ -341,6 +346,19 @@ def drive_server(row, executable, directory, environment, command_prefix):
                 result.append({"status": response.status, "body": body.decode()})
             if isinstance(peer, ssl.SSLSocket):
                 peer.unwrap()
+        if observe_close:
+            until = time.monotonic() + 5
+            while not closed.exists():
+                if process.poll() is not None:
+                    assert closed.exists(), "server exited before observing normal close"
+                    break
+                if time.monotonic() >= until:
+                    raise TimeoutError("server did not observe normal WebSocket close within 5s")
+                time.sleep(0.01)
+            assert closed.read_text() == "closed\n"
+            if not executable.stem.startswith("threaded-"):
+                assert process.wait(timeout=5) == 0
+            result.append({"normal_close_observed": True})
         if row["id"] == "websocket-server-fast":
             for offset in (1, 2):
                 with contextlib.closing(connect(port + offset)) as peer:
@@ -352,7 +370,8 @@ def drive_server(row, executable, directory, environment, command_prefix):
             result.append({"listeners": ["sync", "async", "stackful"]})
     finally:
         graceful = (row["id"] == "advanced-server-flex-awaitable" and
-                    executable.suffix != ".wasm" and os.name != "nt")
+                    executable.suffix != ".wasm" and os.name != "nt" and
+                    not executable.stem.startswith(("checked-", "single-")))
         if process.poll() is None:
             if graceful:
                 process.send_signal(signal.SIGINT)

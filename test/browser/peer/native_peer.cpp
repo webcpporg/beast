@@ -35,7 +35,8 @@ struct barrier {
 };
 
 template <class Stream>
-void websocket(Stream stream, const beast::http::request<beast::http::string_body>& request) {
+void websocket(Stream stream, const beast::http::request<beast::http::string_body>& request,
+               barrier& released) {
     beast::websocket::stream<Stream> socket(std::move(stream));
     boost::system::error_code ec;
     const auto protocol = request[beast::http::field::sec_websocket_protocol];
@@ -73,6 +74,12 @@ void websocket(Stream stream, const beast::http::request<beast::http::string_bod
         if (request.target() == "/retained-flood") {
             socket.write(net::buffer(std::string(128, 'B')), ec);
         } else {
+            if (request.target() == "/delayed-echo") {
+                std::unique_lock lock(released.mutex);
+                released.changed.wait_for(lock, std::chrono::seconds(5),
+                                          [&] { return released.released; });
+                released.released = false;
+            }
             socket.text(socket.got_text());
             socket.write(buffer.data(), ec);
         }
@@ -102,7 +109,7 @@ void session(Stream stream, barrier& headers) {
             return;
         }
         if (beast::websocket::is_upgrade(request) && request.target() != "/refuse") {
-            websocket(std::move(stream), request);
+            websocket(std::move(stream), request, headers);
             return;
         }
         if (request.target() == "/empty-reason") {

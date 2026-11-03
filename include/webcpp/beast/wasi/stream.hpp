@@ -43,7 +43,7 @@ struct stream_control {
     /** Opaque cancellation predicate state. */
     void* cancellation_context = nullptr;
     /** Absolute deadline, or the maximum time point for none. */
-    std::chrono::steady_clock::time_point deadline =
+    std::chrono::steady_clock::time_point deadline =   // lint-world: explicit channel deadline
         std::chrono::steady_clock::time_point::max();  // lint-world: explicit deadline
 
     /** Reports cancellation or expiry.

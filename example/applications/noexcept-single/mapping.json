@@ -66,6 +66,7 @@
   "adaptations": [
     "Explicit throw/rethrow sites terminate with a diagnostic and abort.",
     "Catch blocks are removed; error_code paths and successful flows retained.",
+    "Sync WebSocket servers observe normal close through error_code and return.",
     "Boost.Context stackful source remains blocked in exception-off modes.",
     "Single-thread variants additionally apply explicit WASIp3 scheduling."
   ]

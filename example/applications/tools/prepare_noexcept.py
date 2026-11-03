@@ -27,6 +27,22 @@ def end_block(text, opening):
     return cursor
 
 
+def observe_normal_close(text):
+    if "void do_session(" not in text or "ws.read(buffer);" not in text:
+        return text
+    text = text.replace('#include "failure.hpp"',
+                        '#include "failure.hpp"\n#include "close_observation.hpp"')
+    return text.replace("ws.read(buffer);", """beast::error_code read_error;
+            ws.read(buffer, read_error);
+            if (read_error == websocket::error::closed) {
+                webcpp_fixture::observe_normal_close();
+                return;
+            }
+            if (read_error) {
+                webcpp_fixture::fail_stop();
+            }""")
+
+
 def adapt(text, browser=False):
     while match := re.search(r"\bcatch\s*\(", masked(text)):
         opening = text.index("{", match.end())
@@ -45,7 +61,7 @@ def adapt(text, browser=False):
                             "{ boost::system::error_code verify_error; "
                             "ctx.set_verify_mode(ssl::verify_peer, verify_error); "
                             "if (verify_error) webcpp_fixture::fail_stop(); }")
-    return text
+    return observe_normal_close(text)
 
 
 def generate(formatter):
@@ -120,6 +136,8 @@ def generate(formatter):
         "browser_applications": browser["applications"],
         "adaptations": ["Explicit throw/rethrow sites terminate with a diagnostic and abort.",
                         "Catch blocks are removed; error_code paths and successful flows retained.",
+                        "Sync WebSocket servers observe normal close "
+                        "through error_code and return.",
                         "Boost.Context stackful source remains blocked in exception-off modes.",
                         "Single-thread variants additionally apply explicit WASIp3 scheduling."],
     }, indent=2) + "\n")

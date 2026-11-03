@@ -73,7 +73,7 @@ def normalized_run(path):
         if position >= 0:
             result = json.loads(line[position:])
             return {key: value for key, value in result.items()
-                    if key not in ("command", "commands")}
+                    if key not in ("command", "commands", "startup_seconds")}
     raise ValueError(f"No observed application result in {path}")
 
 

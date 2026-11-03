@@ -82,6 +82,24 @@ class InventoryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Missing bounded host crawler"):
                 MATRIX["add_host_crawl"]({"http-crawl": {}}, evidence, {"adaptations": []})
 
+    def test_observed_startup_time_does_not_change_behavior(self):
+        record = {"application": "echo-op", "result": "passed", "command": ["oracle"],
+                  "exchanges": [{"echo": "payload"}], "startup_seconds": 0.02,
+                  "startup_budget_seconds": 5, "exchange_timeout_seconds": 5}
+        with tempfile.TemporaryDirectory() as temporary:
+            oracle, port = (Path(temporary) / name for name in ("oracle.log", "port.log"))
+            oracle.write_text(json.dumps(record) + "\n")
+            record.update(command=["port"], startup_seconds=0.03)
+            port.write_text(json.dumps(record) + "\n")
+            self.assertEqual(MATRIX["normalized_run"](oracle), MATRIX["normalized_run"](port))
+            for key, value in (("startup_budget_seconds", 15), ("exchange_timeout_seconds", 10),
+                               ("exchanges", [{"echo": "different payload"}])):
+                with self.subTest(key=key):
+                    changed = {**record, key: value}
+                    port.write_text(json.dumps(changed) + "\n")
+                    self.assertNotEqual(MATRIX["normalized_run"](oracle),
+                                        MATRIX["normalized_run"](port))
+
 
 if __name__ == "__main__":
     unittest.main()
