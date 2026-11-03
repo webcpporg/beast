@@ -32,7 +32,8 @@ def base_cell(row, profile):
     state = "planned"
     reason = "No measured evidence for this profile."
     if profile.startswith("wasip2-socket"):
-        state, reason = "blocked", "Asio has no WASIp2 raw-socket backend."
+        state = "platform-unavailable"
+        reason = "webcpp::asio declares no WASIp2 target; Beast sockets follow asio targets"
     if "socket" in profile and row["local_socket"]:
         state, reason = "platform-unavailable", "WASI has no Unix-domain socket namespace."
     if profile.startswith("wasip3-socket") and row["stackful"]:
