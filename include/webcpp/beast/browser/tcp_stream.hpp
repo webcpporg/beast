@@ -11,7 +11,7 @@
 
 #include <arpa/inet.h>  // lint-world: allocation-free numeric address formatting, without I/O
 #include <array>
-#include <boost/beast/core/stream_traits.hpp>  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(core/stream_traits.hpp)  // lint-world: portable protocol data and explicit stream algorithms
 #include <charconv>
 #include <chrono>
 #include <string>
@@ -21,7 +21,7 @@
 // NOLINTNEXTLINE(modernize-concat-nested-namespaces): policy selects an inline namespace
 namespace webcpp::beast {
 /** Finds the innermost layer of a composed stream. */
-using boost::beast::get_lowest_layer;
+using ::webcpp::beast_backend::get_lowest_layer;
 #ifdef WEBCPP_BEAST_UNSUPPORTED_IGNORE
 inline namespace unsupported_ignore {
 #else
@@ -35,7 +35,7 @@ public:
     /**
      Executor used to schedule stream operations and their completions.
      */
-    using executor_type = boost::asio::any_io_executor;
+    using executor_type = ::webcpp::asio_backend::any_io_executor;
     /**
      Address and service value recorded by connect.
      */
@@ -251,7 +251,7 @@ public:
      Closes the browser operation and its authority record.
      @param ec Receives the operation error, or is cleared on success.
      */
-    void shutdown(boost::asio::socket_base::shutdown_type /*unused*/,
+    void shutdown(::webcpp::asio_backend::socket_base::shutdown_type /*unused*/,
                   boost::system::error_code& ec) {
         close(ec);
     }
@@ -260,7 +260,7 @@ public:
      Closes the browser operation and its authority record.
      @param what Shutdown direction; browser host operations close as a whole.
      */
-    void shutdown(boost::asio::socket_base::shutdown_type what) {
+    void shutdown(::webcpp::asio_backend::socket_base::shutdown_type what) {
         boost::system::error_code ec;
         shutdown(what, ec);
     }
@@ -274,7 +274,7 @@ public:
     endpoint_type connect(const webcpp::asio::ip::tcp::resolver::results_type& results,
                           boost::system::error_code& ec) {
         if (results.empty()) {
-            ec = boost::asio::error::host_not_found;
+            ec = ::webcpp::asio_backend::error::host_not_found;
             return {};
         }
         reset_operation();
@@ -322,7 +322,7 @@ public:
         if (address.is_v6()) {
             const auto bytes = address.to_v6().to_bytes();
             if (inet_ntop(AF_INET6, bytes.data(), text.data(), text.size()) == nullptr) {
-                ec = boost::asio::error::invalid_argument;
+                ec = ::webcpp::asio_backend::error::invalid_argument;
                 return {};
             }
             host_.assign(1, '[');
@@ -336,7 +336,7 @@ public:
         } else {
             const auto bytes = address.to_v4().to_bytes();
             if (inet_ntop(AF_INET, bytes.data(), text.data(), text.size()) == nullptr) {
-                ec = boost::asio::error::invalid_argument;
+                ec = ::webcpp::asio_backend::error::invalid_argument;
                 return {};
             }
             host_.assign(text.data());
@@ -370,7 +370,8 @@ public:
     template <class Token>
     auto async_connect(const webcpp::asio::ip::tcp::resolver::results_type& results,
                        Token&& token) {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code, endpoint_type)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(boost::system::error_code,
+                                                                  endpoint_type)>(
             [this, results](auto handler) {
                 boost::system::error_code ec;
                 auto endpoint = connect(results, ec);
@@ -391,7 +392,7 @@ public:
      */
     template <class Token>
     auto async_connect(const endpoint_type& endpoint, Token&& token) {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(boost::system::error_code)>(
             [this, endpoint](auto handler) {
                 boost::system::error_code ec;
                 connect(endpoint, ec);

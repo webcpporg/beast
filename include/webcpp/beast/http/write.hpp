@@ -9,22 +9,22 @@
 
 #include <webcpp/beast/config.hpp>
 
-#include <boost/beast/http/write.hpp>  // lint-world: explicit HTTP byte-stream operations
+#include WEBCPP_BEAST_BACKEND_HEADER(http/write.hpp)  // lint-world: explicit HTTP byte-stream operations
 
 // NOLINTNEXTLINE(modernize-concat-nested-namespaces): policy selects an inline namespace
 namespace webcpp::beast::http {
 /** Upstream HTTP write operation on a byte stream. */
-using boost::beast::http::write;
+using ::webcpp::beast_backend::http::write;
 /** Upstream HTTP write header operation on a byte stream. */
-using boost::beast::http::write_header;
+using ::webcpp::beast_backend::http::write_header;
 /** Upstream HTTP write some operation on a byte stream. */
-using boost::beast::http::write_some;
+using ::webcpp::beast_backend::http::write_some;
 /** Upstream HTTP async write operation on a byte stream. */
-using boost::beast::http::async_write;
+using ::webcpp::beast_backend::http::async_write;
 /** Upstream HTTP async write header operation on a byte stream. */
-using boost::beast::http::async_write_header;
+using ::webcpp::beast_backend::http::async_write_header;
 /** Upstream HTTP async write some operation on a byte stream. */
-using boost::beast::http::async_write_some;
+using ::webcpp::beast_backend::http::async_write_some;
 }  // namespace webcpp::beast::http
 
 #ifdef WEBCPP_TARGET_EMSCRIPTEN

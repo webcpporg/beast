@@ -34,8 +34,7 @@
 
 #include "common/server_certificate.hpp"
 
-#include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
+#include <webcpp/asio/ssl.hpp>
 #include <webcpp/beast.hpp>
 
 #include <algorithm>
@@ -51,8 +50,8 @@
 namespace beast = webcpp::beast;
 namespace http = beast::http;
 namespace websocket = beast::websocket;
-namespace net = boost::asio;
-namespace ssl = boost::asio::ssl;
+namespace net = webcpp::asio;
+namespace ssl = webcpp::asio::ssl;
 
 using executor_type = net::strand<webcpp::asio::io_context::executor_type>;
 using stream_type = beast::tcp_stream::rebind_executor<executor_type>::other;

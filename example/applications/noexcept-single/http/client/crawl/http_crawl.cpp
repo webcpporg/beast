@@ -34,11 +34,6 @@
 #include "urls_large_data.hpp"
 
 #include <atomic>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/post.hpp>
-#include <boost/asio/strand.hpp>
 #include <chrono>
 #include <cstdlib>
 #include <functional>
@@ -46,6 +41,11 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <webcpp/asio/bind_executor.hpp>
+#include <webcpp/asio/connect.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
+#include <webcpp/asio/post.hpp>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast/core.hpp>
 
 #include <map>
@@ -54,8 +54,8 @@
 namespace chrono = std::chrono;     // from <chrono>
 namespace beast = webcpp::beast;    // from <webcpp/beast.hpp>
 namespace http = beast::http;       // from <webcpp/beast/http.hpp>
-namespace net = boost::asio;        // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 

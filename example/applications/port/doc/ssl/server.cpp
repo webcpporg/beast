@@ -24,8 +24,7 @@
 // Official repository: https://github.com/boostorg/beast
 //
 
-#include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
+#include <webcpp/asio/ssl.hpp>
 #include <webcpp/beast.hpp>
 
 #include <iostream>
@@ -34,7 +33,7 @@
 
 namespace beast = webcpp::beast;
 namespace http = beast::http;
-namespace net = boost::asio;
+namespace net = webcpp::asio;
 namespace ssl = net::ssl;
 
 namespace {

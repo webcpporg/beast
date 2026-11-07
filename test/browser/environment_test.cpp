@@ -14,7 +14,7 @@
 #include <webcpp/beast/websocket.hpp>
 
 #include <emscripten/val.h>
-#include <boost/asio/post.hpp>
+#include <webcpp/asio/post.hpp>
 #define BOOST_LIGHTWEIGHT_TEST_OSTREAM std::cout
 #include <boost/core/lightweight_test.hpp>
 #include <cstdio>
@@ -82,7 +82,7 @@ void delayed_websocket_read(const std::string& port) {
     if (!BOOST_TEST(!ec)) {
         return;
     }
-    socket.write(boost::asio::buffer("delayed echo", 12), ec);
+    socket.write(webcpp::asio::buffer("delayed echo", 12), ec);
     BOOST_TEST(!ec);
     begin_heartbeat("websocket");
     beast::flat_buffer buffer;
@@ -113,13 +113,13 @@ void nested_entry(const std::string& port) {
     beast::flat_buffer buffer;
     beast::http::response<beast::http::string_body> response;
     bool checked = false;
-    boost::asio::post(io, [&] {
+    webcpp::asio::post(io, [&] {
         const auto size = beast::http::read(stream, buffer, response, ec);
-        BOOST_TEST(ec == boost::asio::error::operation_not_supported);
+        BOOST_TEST(ec == webcpp::asio::error::operation_not_supported);
         BOOST_TEST_EQ(size, 0U);
         BOOST_TEST(response.body().empty());
         socket.handshake("127.0.0.1:" + port, "/echo", ec);
-        BOOST_TEST(ec == boost::asio::error::operation_not_supported);
+        BOOST_TEST(ec == webcpp::asio::error::operation_not_supported);
         BOOST_TEST(!socket.is_open());
         checked = true;
     });

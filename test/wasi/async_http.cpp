@@ -4,12 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-#include <boost/asio/bind_allocator.hpp>
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/cancellation_signal.hpp>
-#include <boost/asio/deferred.hpp>
 #include <memory_resource>
+#include <webcpp/asio/bind_allocator.hpp>
+#include <webcpp/asio/bind_cancellation_slot.hpp>
+#include <webcpp/asio/bind_executor.hpp>
+#include <webcpp/asio/cancellation_signal.hpp>
+#include <webcpp/asio/deferred.hpp>
 #include <webcpp/beast/wasi/async.hpp>
 
 namespace host = webcpp::wasi::http;
@@ -107,7 +107,7 @@ struct test_session {
     http::fields slow_trailers;
     http::fields fast_trailers;
     http::response<http::buffer_body> failed_response{http::status::ok, 11};
-    boost::asio::cancellation_signal cancellation;
+    webcpp::asio::cancellation_signal cancellation;
     std::optional<wasi::client> client;
     std::string authority;
     bool initiated = false;
@@ -123,7 +123,7 @@ struct test_session {
         response.prepare_payload();
         wasi::async_send(
             context, out, response,
-            boost::asio::bind_allocator(
+            webcpp::asio::bind_allocator(
                 allocator, [this](boost::system::error_code error, std::size_t count) {
                     if (error || count != response.body().size() || allocations.active != 0) {
                         std::abort();
@@ -156,7 +156,7 @@ struct test_session {
         failed_response.body().size = 3;
         failed_response.body().more = true;
         wasi::async_send(context, out, failed_response,
-                         boost::asio::bind_allocator(
+                         webcpp::asio::bind_allocator(
                              allocator, [this](boost::system::error_code ec, std::size_t bytes) {
                                  if (ec != http::error::need_buffer || bytes != 3) {
                                      std::abort();
@@ -175,7 +175,7 @@ struct test_session {
                 wasi::http_context abandoned;
                 wasi::async_perform(
                     abandoned, *client, slow_request, slow_reply,
-                    boost::asio::bind_allocator(
+                    webcpp::asio::bind_allocator(
                         allocator, [](boost::system::error_code, std::size_t) { std::abort(); }));
                 abandoned.poll();
             }
@@ -188,21 +188,21 @@ struct test_session {
             }
             wasi::async_perform(
                 context, *client, slow_request, slow_reply,
-                boost::asio::bind_cancellation_slot(
+                webcpp::asio::bind_cancellation_slot(
                     cancellation.slot(),
-                    boost::asio::bind_allocator(allocator,
-                                                [this](boost::system::error_code ec, std::size_t) {
-                                                    if (!ec) {
-                                                        std::abort();
-                                                    }
-                                                    response.result(http::status::request_timeout);
-                                                    response.body() = ec.message();
-                                                    send();
-                                                })),
+                    webcpp::asio::bind_allocator(allocator,
+                                                 [this](boost::system::error_code ec, std::size_t) {
+                                                     if (!ec) {
+                                                         std::abort();
+                                                     }
+                                                     response.result(http::status::request_timeout);
+                                                     response.body() = ec.message();
+                                                     send();
+                                                 })),
                 limits);
             if (path == "/cancel-client") {
                 context.poll();
-                cancellation.emit(boost::asio::cancellation_type::all);
+                cancellation.emit(webcpp::asio::cancellation_type::all);
             }
         }
     }
@@ -219,17 +219,17 @@ struct test_session {
         fast_request.prepare_payload();
         wasi::async_perform(
             context, *client, slow_request, slow_reply,
-            boost::asio::bind_allocator(allocator,
-                                        [this](boost::system::error_code ec, std::size_t bytes) {
-                                            client_done(false, ec, bytes);
-                                        }),
+            webcpp::asio::bind_allocator(allocator,
+                                         [this](boost::system::error_code ec, std::size_t bytes) {
+                                             client_done(false, ec, bytes);
+                                         }),
             wasi::transfer_options(), &slow_trailers);
         wasi::async_perform(
             context, *client, fast_request, fast_reply,
-            boost::asio::bind_allocator(allocator,
-                                        [this](boost::system::error_code ec, std::size_t bytes) {
-                                            client_done(true, ec, bytes);
-                                        }),
+            webcpp::asio::bind_allocator(allocator,
+                                         [this](boost::system::error_code ec, std::size_t bytes) {
+                                             client_done(true, ec, bytes);
+                                         }),
             wasi::transfer_options(), &fast_trailers);
     }
 
@@ -261,26 +261,26 @@ struct test_session {
             options.expires_after(30000000);
         }
         auto deferred =
-            wasi::async_receive(context, incoming, request, boost::asio::deferred, options);
+            wasi::async_receive(context, incoming, request, webcpp::asio::deferred, options);
         if (allocations.calls != 0) {
             std::abort();
         }
 
         if (path == "/pmr") {
             receive_resource = std::make_unique<completion_resource>();
-            std::move(deferred)(boost::asio::bind_executor(
+            std::move(deferred)(webcpp::asio::bind_executor(
                 completion_context.get_executor(),
-                boost::asio::bind_allocator(
+                webcpp::asio::bind_allocator(
                     std::pmr::polymorphic_allocator<char>(receive_resource.get()),
                     [this](boost::system::error_code error, std::size_t count) {
                         receive_resource.reset();
                         receive_done(error, count);
                     })));
         } else {
-            std::move(deferred)(boost::asio::bind_executor(
+            std::move(deferred)(webcpp::asio::bind_executor(
                 completion_context.get_executor(),
-                boost::asio::bind_allocator(
-                    allocator, boost::asio::bind_cancellation_slot(
+                webcpp::asio::bind_allocator(
+                    allocator, webcpp::asio::bind_cancellation_slot(
                                    cancellation.slot(),
                                    [this](boost::system::error_code error, std::size_t count) {
                                        receive_done(error, count);
@@ -289,7 +289,7 @@ struct test_session {
         initiated = true;
         if (path == "/cancel") {
             context.get_executor().post(
-                [this] { cancellation.emit(boost::asio::cancellation_type::all); }, allocator);
+                [this] { cancellation.emit(webcpp::asio::cancellation_type::all); }, allocator);
         }
         context.run();
         if (received) {

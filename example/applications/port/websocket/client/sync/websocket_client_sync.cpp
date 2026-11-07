@@ -32,18 +32,18 @@
 
 //[example_websocket_client
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <webcpp/asio/connect.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;       // from <webcpp/asio/ip/tcp.hpp>
 
 // Sends a WebSocket message and prints the response
 // The process entry point retains the standard char** argv signature.

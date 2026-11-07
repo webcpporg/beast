@@ -18,15 +18,15 @@
 #include <webcpp/beast/websocket.hpp>
 #include "websocket-channel.hpp"
 #ifdef __wasip2__
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/use_awaitable.hpp>
+#include <webcpp/asio/as_tuple.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/use_awaitable.hpp>
 #endif
 
 int main() {
     namespace beast = webcpp::beast;
     namespace websocket = beast::websocket;
-    boost::asio::io_context context;
+    webcpp::asio::io_context context;
     websocket::stream<supplied_example::channel> stream(context.get_executor());
     stream.set_option(websocket::stream_base::decorator([](websocket::response_type& response) {
         response.set(beast::http::field::server,
@@ -34,10 +34,10 @@ int main() {
     }));
 #ifdef __wasip2__
     int result = 1;
-    boost::asio::co_spawn(
+    webcpp::asio::co_spawn(
         context,
-        [&]() -> boost::asio::awaitable<void> {
-            auto token = boost::asio::as_tuple(boost::asio::use_awaitable);
+        [&]() -> webcpp::asio::awaitable<void> {
+            auto token = webcpp::asio::as_tuple(webcpp::asio::use_awaitable);
             auto [accept_error] = co_await stream.async_accept(token);
             if (accept_error) {
                 co_return;

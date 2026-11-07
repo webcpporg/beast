@@ -4,9 +4,9 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-#include <boost/beast/_experimental/test/stream.hpp>
 #include <webcpp/asio.hpp>
 #include <webcpp/asio/browser/async_await.hpp>
+#include <webcpp/beast/_experimental/test/stream.hpp>
 #include <webcpp/beast/browser/http_byte_stream.hpp>
 #include <webcpp/beast/core.hpp>
 #include <webcpp/beast/http.hpp>
@@ -18,14 +18,14 @@
 
 #include <emscripten/val.h>
 #include <array>
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/buffer.hpp>
-#include <boost/asio/cancellation_signal.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <chrono>
 #include <cstdio>
 #include <memory_resource>
 #include <string>
+#include <webcpp/asio/bind_cancellation_slot.hpp>
+#include <webcpp/asio/buffer.hpp>
+#include <webcpp/asio/cancellation_signal.hpp>
+#include <webcpp/asio/steady_timer.hpp>
 #include <webcpp/beast/ssl.hpp>
 
 namespace {
@@ -67,7 +67,7 @@ private:
 
 struct alignas(64) aligned_decorator {
     void operator()(beast::websocket::request_type& request) const {
-        request.set(boost::beast::http::field::sec_websocket_protocol, "chat");
+        request.set(webcpp::beast_backend::http::field::sec_websocket_protocol, "chat");
     }
 };
 
@@ -119,7 +119,7 @@ struct fixture {
         const auto on_handshake = [&](auto error) {
             if (check(error)) {
                 ws.text(true);
-                ws.async_write(boost::asio::buffer("hello", 5), on_write);
+                ws.async_write(webcpp::asio::buffer("hello", 5), on_write);
             }
         };
         resolver.async_resolve("127.0.0.1", port, [&](auto error, const auto& resolved) {
@@ -173,7 +173,7 @@ struct fixture {
         }
         socket.binary(true);
         const std::array<unsigned char, 3> data{1, 2, 3};
-        socket.write(boost::asio::buffer(data), ec);
+        socket.write(webcpp::asio::buffer(data), ec);
         beast::flat_buffer result;
         socket.read(result, ec);
         if (!check(ec) || !socket.got_binary() || result.size() != 3 ||
@@ -181,8 +181,16 @@ struct fixture {
             return fail(__LINE__);
         }
         socket.text(true);
-        socket.write_some(false, boost::asio::buffer("ab", 2), ec);
-        socket.write_some(true, boost::asio::buffer("cd", 2), ec);
+        const std::string unicode{"UTF-8: \xC3\xA9 \xF0\x9F\x98\x80"};
+        socket.write(webcpp::asio::buffer(unicode), ec);
+        result.consume(result.size());
+        socket.read(result, ec);
+        if (!check(ec) || !socket.got_text() ||
+            beast::buffers_to_string(result.data()) != unicode) {
+            return fail(__LINE__);
+        }
+        socket.write_some(false, webcpp::asio::buffer("ab", 2), ec);
+        socket.write_some(true, webcpp::asio::buffer("cd", 2), ec);
         result.consume(result.size());
         std::size_t piece = 0;
         socket.async_read_some(result, 3, [&](auto error, auto count) {
@@ -206,16 +214,17 @@ struct fixture {
         }
         bool cancelled = false;
         bool inline_call = true;
-        boost::asio::cancellation_signal signal;
+        webcpp::asio::cancellation_signal signal;
         result.consume(result.size());
         socket.async_read(
-            result, boost::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
+            result,
+            webcpp::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
                 cancelled =
-                    error == boost::asio::error::operation_aborted && count == 0 && !inline_call;
+                    error == webcpp::asio::error::operation_aborted && count == 0 && !inline_call;
             }));
-        signal.emit(boost::asio::cancellation_type::total);
+        signal.emit(webcpp::asio::cancellation_type::total);
         inline_call = false;
-        socket.write(boost::asio::buffer("after cancel", 12), ec);
+        socket.write(webcpp::asio::buffer("after cancel", 12), ec);
         io.restart();
         io.run();  // lint-run: controlled browser peers with an outer driver deadline
         socket.read(result, ec);
@@ -224,7 +233,7 @@ struct fixture {
         }
         socket.close(beast::websocket::close_code::going_away, ec);
 #ifdef WEBCPP_BEAST_UNSUPPORTED_ERROR
-        if (ec != boost::asio::error::operation_not_supported || !socket.is_open()) {
+        if (ec != webcpp::asio::error::operation_not_supported || !socket.is_open()) {
             return fail(__LINE__);
         }
         socket.close(beast::websocket::close_code::normal, ec);
@@ -245,25 +254,25 @@ struct fixture {
             beast::get_lowest_layer(socket).expires_after(std::chrono::hours(1));
             beast::flat_buffer dynamic;
             std::array<char, 32> fixed{};
-            boost::asio::cancellation_signal signal;
+            webcpp::asio::cancellation_signal signal;
             bool cancelled = false;
             auto completion =
-                boost::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
-                    cancelled = error == boost::asio::error::operation_aborted && count == 0;
+                webcpp::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
+                    cancelled = error == webcpp::asio::error::operation_aborted && count == 0;
                 });
             if (overload == 0) {
                 socket.async_read(dynamic, std::move(completion));
             } else {
-                socket.async_read_some(boost::asio::buffer(fixed), std::move(completion));
+                socket.async_read_some(webcpp::asio::buffer(fixed), std::move(completion));
             }
-            signal.emit(boost::asio::cancellation_type::total);
+            signal.emit(webcpp::asio::cancellation_type::total);
             io.restart();
             io.poll();
             if (!cancelled || !io.stopped() || !socket.is_open()) {
                 return fail(__LINE__);
             }
             beast::get_lowest_layer(socket).expires_never();
-            socket.write(boost::asio::buffer("after cancel", 12), ec);
+            socket.write(webcpp::asio::buffer("after cancel", 12), ec);
             socket.read(dynamic, ec);
             if (!check(ec) || beast::buffers_to_string(dynamic.data()) != "after cancel") {
                 return fail(__LINE__);
@@ -279,7 +288,7 @@ struct fixture {
             return fail(__LINE__);
         }
         socket.read_message_max(2);
-        socket.write(boost::asio::buffer("long", 4), ec);
+        socket.write(webcpp::asio::buffer("long", 4), ec);
         beast::flat_buffer result;
         socket.read(result, ec);
         if (ec != beast::websocket::error::message_too_big || socket.is_open()) {
@@ -295,7 +304,7 @@ struct fixture {
             return fail(__LINE__);
         }
         socket.set_option(beast::websocket::queue_limits{.send = 2, .receive = 1024});
-        socket.write(boost::asio::buffer("long", 4), ec);
+        socket.write(webcpp::asio::buffer("long", 4), ec);
         if (ec != beast::browser_errc::send_limit || socket.is_open()) {
             return fail(__LINE__);
         }
@@ -309,7 +318,7 @@ struct fixture {
             return fail(__LINE__);
         }
         socket.set_option(beast::websocket::queue_limits{.send = 1024, .receive = 2});
-        socket.write(boost::asio::buffer("long", 4), ec);
+        socket.write(webcpp::asio::buffer("long", 4), ec);
         beast::flat_buffer result;
         socket.read(result, ec);
         if (ec != beast::browser_errc::receive_limit || socket.is_open()) {
@@ -323,7 +332,7 @@ struct fixture {
         for (const bool partial : {false, true}) {
             beast::websocket::stream<beast::tcp_stream> socket(io);
             socket.set_option(beast::websocket::queue_limits{.send = 1024, .receive = 256});
-            boost::asio::steady_timer guard(io, std::chrono::seconds(5));
+            webcpp::asio::steady_timer guard(io, std::chrono::seconds(5));
             bool closed = false;
             socket.control_callback([&](beast::websocket::frame_type kind, auto) {
                 if (kind == beast::websocket::frame_type::close) {
@@ -343,7 +352,7 @@ struct fixture {
                 socket.async_read_some(result, 1, [&](auto error, auto count) {
                     ec = error;
                     received = count;
-                    socket.write(boost::asio::buffer("next", 4), ec);
+                    socket.write(webcpp::asio::buffer("next", 4), ec);
                 });
                 io.restart();
                 io.run();  // lint-run: bounded by the five-second local-peer guard
@@ -390,7 +399,7 @@ struct fixture {
                 return fail(__LINE__);
             }
             socket.async_read(result, [&](auto error, auto count) {
-                cancelled = error == boost::asio::error::operation_aborted && count == 0;
+                cancelled = error == webcpp::asio::error::operation_aborted && count == 0;
             });
         }
         io.restart();
@@ -419,7 +428,7 @@ struct fixture {
         }
         stream.handshake(net::ssl::stream_base::client, ec);
 #ifdef WEBCPP_BEAST_UNSUPPORTED_ERROR
-        if (ec != boost::asio::error::operation_not_supported) {
+        if (ec != webcpp::asio::error::operation_not_supported) {
             return fail(__LINE__);
         }
 #else
@@ -446,7 +455,7 @@ struct fixture {
         if (!check(ec)) {
             return fail(__LINE__);
         }
-        socket.write(boost::asio::buffer("secure", 6), ec);
+        socket.write(webcpp::asio::buffer("secure", 6), ec);
         beast::flat_buffer message;
         socket.read(message, ec);
         if (!check(ec) || beast::buffers_to_string(message.data()) != "secure") {
@@ -510,17 +519,17 @@ struct fixture {
         const auto state =
             detail::make_websocket_state(io.get_executor(), std::allocator<std::byte>());
         state->opened = true;
-        state->timeout.idle_timeout = boost::beast::websocket::stream_base::none();
+        state->timeout.idle_timeout = webcpp::beast_backend::websocket::stream_base::none();
         state->key = state->bridge->add(*state);
         bool timed_out = false;
-        boost::asio::steady_timer rescue(io);
+        webcpp::asio::steady_timer rescue(io);
         detail::start<false>(
             state->close, io.get_executor(),
             [&](auto error) {
                 timed_out = error == beast::error::timeout;
                 rescue.cancel();
             },
-            [](auto&, auto&) {}, boost::asio::cancellation_type::none, [] {});
+            [](auto&, auto&) {}, webcpp::asio::cancellation_type::none, [] {});
         state->arm(detail::clock_type::now() + std::chrono::milliseconds(20));
         // The bridge has already queued this message when close becomes pending.
         auto event = emscripten::val::object();
@@ -530,7 +539,7 @@ struct fixture {
         rescue.expires_after(std::chrono::milliseconds(200));
         rescue.async_wait([state](auto error) {
             if (!error) {
-                state->finish(boost::asio::error::operation_aborted);
+                state->finish(webcpp::asio::error::operation_aborted);
             }
         });
         io.restart();
@@ -546,13 +555,13 @@ struct fixture {
         request.method(beast::http::verb::get);
         request.target("/http");
         request.set(beast::http::field::host, host);
-        boost::beast::http::write(adapter, request, ec);
+        webcpp::beast_backend::http::write(adapter, request, ec);
         if (!check(ec)) {
             return fail(__LINE__);
         }
         beast::flat_buffer wire;
         beast::http::response<beast::http::dynamic_body> response;
-        boost::beast::http::read(adapter, wire, response, ec);
+        webcpp::beast_backend::http::read(adapter, wire, response, ec);
         if (!check(ec) || beast::buffers_to_string(response.body().data()) != "fetch body") {
             return fail(__LINE__);
         }
@@ -620,14 +629,14 @@ struct fixture {
         }
         beast::flat_buffer buffer;
         beast::http::response<beast::http::string_body> response;
-        boost::asio::cancellation_signal signal;
+        webcpp::asio::cancellation_signal signal;
         bool cancelled = false;
         beast::http::async_read(
             transport, buffer, response,
-            boost::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
-                cancelled = error == boost::asio::error::operation_aborted && count == 0;
+            webcpp::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
+                cancelled = error == webcpp::asio::error::operation_aborted && count == 0;
             }));
-        signal.emit(boost::asio::cancellation_type::total);
+        signal.emit(webcpp::asio::cancellation_type::total);
         io.restart();
         io.poll();
         // No future deadline should retain work after the fetch was cancelled.
@@ -679,12 +688,12 @@ struct fixture {
         }
         beast::flat_buffer buffer;
         beast::http::response<beast::http::string_body> old_response;
-        boost::asio::cancellation_signal signal;
+        webcpp::asio::cancellation_signal signal;
         bool cancelled = false;
         beast::http::async_read(
             transport, buffer, old_response,
-            boost::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
-                cancelled = error == boost::asio::error::operation_aborted && count == 0;
+            webcpp::asio::bind_cancellation_slot(signal.slot(), [&](auto error, auto count) {
+                cancelled = error == webcpp::asio::error::operation_aborted && count == 0;
             }));
         net::io_context observed;
         bool queued = false;
@@ -695,7 +704,7 @@ struct fixture {
         if (!queued) {
             return fail(__LINE__);
         }
-        signal.emit(boost::asio::cancellation_type::total);
+        signal.emit(webcpp::asio::cancellation_type::total);
         request.body() = "new exchange";
         request.prepare_payload();
         beast::http::write(transport, request, ec);
@@ -739,22 +748,22 @@ struct fixture {
         beast::browser::http_byte_stream adapter(transport);
         beast::http::request<beast::http::empty_body> request{beast::http::verb::head, "/http", 11};
         request.set(beast::http::field::host, host);
-        boost::beast::http::write(adapter, request, ec);
+        webcpp::beast_backend::http::write(adapter, request, ec);
         if (!check(ec)) {
             return fail(__LINE__);
         }
         beast::http::response_parser<beast::http::string_body> parser;
         parser.skip(true);
         beast::flat_buffer wire;
-        boost::beast::http::read(adapter, wire, parser, ec);
+        webcpp::beast_backend::http::read(adapter, wire, parser, ec);
         if (!check(ec) || !parser.is_done() || wire.size() != 0) {
             return fail(__LINE__);
         }
         request.method(beast::http::verb::get);
-        boost::beast::http::write(adapter, request, ec);
+        webcpp::beast_backend::http::write(adapter, request, ec);
         beast::http::response_parser<beast::http::string_body> next;
         next.body_limit(2);
-        boost::beast::http::read(adapter, wire, next, ec);
+        webcpp::beast_backend::http::read(adapter, wire, next, ec);
         if (ec != beast::http::error::body_limit) {
             return fail(__LINE__);
         }
@@ -770,7 +779,7 @@ struct fixture {
         request.set(beast::http::field::user_agent, "beast test");
         beast::http::write(stream, request, ec);
 #ifdef WEBCPP_BEAST_UNSUPPORTED_ERROR
-        if (ec != boost::asio::error::operation_not_supported) {
+        if (ec != webcpp::asio::error::operation_not_supported) {
             return fail(__LINE__);
         }
         request.erase(beast::http::field::user_agent);
@@ -786,7 +795,7 @@ struct fixture {
         beast::http::write(stream, request, ec);
         beast::http::read(stream, buffer, result, ec);
 #ifdef WEBCPP_BEAST_UNSUPPORTED_ERROR
-        if (ec != boost::asio::error::operation_not_supported) {
+        if (ec != webcpp::asio::error::operation_not_supported) {
             return fail(__LINE__);
         }
 #else
@@ -803,7 +812,7 @@ struct fixture {
         }
         stream.close(ec);
         beast::http::write(stream, request, ec);
-        if (ec != boost::asio::error::not_connected) {
+        if (ec != webcpp::asio::error::not_connected) {
             return fail(__LINE__);
         }
 
@@ -887,7 +896,7 @@ struct fixture {
             const auto headers = emscripten::val::global("beastPolicyHeaders");
 #ifdef WEBCPP_BEAST_UNSUPPORTED_ERROR
             if (test.forbidden) {
-                if (ec != boost::asio::error::operation_not_supported || !headers.isUndefined()) {
+                if (ec != webcpp::asio::error::operation_not_supported || !headers.isUndefined()) {
                     return fail(__LINE__);
                 }
                 continue;
@@ -953,8 +962,8 @@ struct fixture {
 
     int guest_protocol() {
         beast::flat_buffer buffer;
-        using memory_stream = boost::beast::test::stream;
-        static_assert(std::is_base_of_v<boost::beast::websocket::stream<memory_stream>,
+        using memory_stream = webcpp::beast_backend::test::stream;
+        static_assert(std::is_base_of_v<webcpp::beast_backend::websocket::stream<memory_stream>,
                                         beast::websocket::stream<memory_stream>>);
         beast::websocket::stream<memory_stream> client(io);
         bool decorated = false;
@@ -989,7 +998,7 @@ struct fixture {
             if (!check(handshake_error)) {
                 return;
             }
-            client.async_write(boost::asio::buffer("guest", 5), [&](auto write_error, auto) {
+            client.async_write(webcpp::asio::buffer("guest", 5), [&](auto write_error, auto) {
                 if (!check(write_error)) {
                     return;
                 }

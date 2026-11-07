@@ -12,7 +12,7 @@
 #include <webcpp/beast/websocket.hpp>
 
 #include <emscripten/val.h>
-#include <boost/asio/buffer.hpp>
+#include <webcpp/asio/buffer.hpp>
 #define BOOST_LIGHTWEIGHT_TEST_OSTREAM std::cout
 #include <boost/core/lightweight_test.hpp>
 #include <cstdio>
@@ -102,7 +102,7 @@ void cancel_open_before_drain(const std::string& port) {
     io.restart();
     io.poll();  // lint-run: drain the queued opening without yielding to later host close events
     BOOST_TEST_EQ(completed, 1);
-    BOOST_TEST(ec == boost::asio::error::operation_aborted);
+    BOOST_TEST(ec == webcpp::asio::error::operation_aborted);
     BOOST_TEST(!socket.is_open());
     socket.handshake("127.0.0.1:" + port, "/echo", ec);
     if (!BOOST_TEST(!ec)) {
@@ -195,7 +195,7 @@ void reuse(const std::string& port, bool reconnect) {
                           .call<emscripten::val>("at", -1)["protocol"]
                           .as<std::string>(),
                       "lifecycle");
-        socket.write(boost::asio::buffer("round trip", 10), ec);
+        socket.write(webcpp::asio::buffer("round trip", 10), ec);
         BOOST_TEST(!ec);
         beast::flat_buffer buffer;
         socket.read(buffer, ec);
@@ -239,7 +239,7 @@ void stale_generation(const std::string& port) {
         });
     });
     // clang-format on
-    socket.write(boost::asio::buffer("old connection", 14), ec);
+    socket.write(webcpp::asio::buffer("old connection", 14), ec);
     if (!BOOST_TEST(!ec) || !await_observation("beastLifecycleOldMessage")) {
         return;
     }
@@ -250,7 +250,7 @@ void stale_generation(const std::string& port) {
         return;
     }
     EM_ASM({ globalThis.beastLifecycleLate(new MessageEvent('message', {data : 'late'})); });
-    socket.write(boost::asio::buffer("new connection", 14), ec);
+    socket.write(webcpp::asio::buffer("new connection", 14), ec);
     BOOST_TEST(!ec);
     beast::flat_buffer buffer;
     socket.read(buffer, ec);
@@ -260,7 +260,7 @@ void stale_generation(const std::string& port) {
     bool cancelled = false;
     buffer.consume(buffer.size());
     socket.async_read(buffer, [&](auto error, auto size) {
-        cancelled = error == boost::asio::error::operation_aborted && size == 0;
+        cancelled = error == webcpp::asio::error::operation_aborted && size == 0;
     });
     beast::get_lowest_layer(socket).close();
     io.restart();

@@ -11,9 +11,9 @@
 
 #include <emscripten/val.h>
 #include <array>
-#include <boost/asio/steady_timer.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/beast/core/buffers_range.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/core/error.hpp>  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_ASIO_BACKEND_HEADER(steady_timer.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_BEAST_BACKEND_HEADER(core/buffers_range.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(core/error.hpp)  // lint-world: portable protocol data and explicit stream algorithms
 #include <vector>
 #include <webcpp/asio/browser/bridge.hpp>
 #include <webcpp/beast/browser/detail/imports.hpp>
@@ -56,7 +56,7 @@ public:
     /**
      Timer enforcing the current operation deadline.
      */
-    boost::asio::steady_timer timer;  // lint-world: browser operation deadline
+    ::webcpp::asio_backend::steady_timer timer;  // lint-world: browser operation deadline
     /**
      Registration key used to reject events from detached operations.
      */
@@ -105,8 +105,8 @@ public:
         : memory(std::move(storage)),
           resource(memory.get()),
           executor(std::move(ex)),
-          bridge(&boost::asio::use_service<webcpp::asio::browser::bridge>(
-              boost::asio::query(executor, boost::asio::execution::context))),
+          bridge(&::webcpp::asio_backend::use_service<webcpp::asio::browser::bridge>(
+              ::webcpp::asio_backend::query(executor, ::webcpp::asio_backend::execution::context))),
           timer(executor) {}
 
     /**
@@ -154,7 +154,7 @@ public:
         detach();
         cancel_timer();
         active = false;
-        failure = boost::asio::error::operation_aborted;
+        failure = ::webcpp::asio_backend::error::operation_aborted;
         ready = true;
         if (read != nullptr) {
             read->complete(failure);
@@ -186,7 +186,7 @@ public:
      Queues a browser event on the stream executor while retaining state ownership.
      */
     bool deliver(const emscripten::val& event) override {
-        post(executor, boost::asio::bind_allocator(
+        post(executor, ::webcpp::asio_backend::bind_allocator(
                            owning_allocator<std::byte>(memory),
                            [self = shared_from_this(), event, generation = key] {
                                if (!self->alive || !self->active || self->key != generation) {
@@ -209,7 +209,7 @@ public:
                                if (type == "fetch-error") {
                                    self->failure = make_error_code(browser_errc::fetch_failed);
                                } else if (type == "fetch-limit") {
-                                   self->failure = boost::beast::http::error::body_limit;
+                                   self->failure = ::webcpp::beast_backend::http::error::body_limit;
                                } else {
                                    self->response = event;
                                    self->failure = unsupported(event["redirected"].as<bool>());
@@ -229,7 +229,7 @@ public:
             return;
         }
         timer.expires_at(deadline);
-        timer.async_wait(boost::asio::bind_allocator(
+        timer.async_wait(::webcpp::asio_backend::bind_allocator(
             owning_allocator<std::byte>(memory),
             [weak = weak_from_this(), generation = key](error_code ec) {
                 if (auto const self = weak.lock();
@@ -238,7 +238,7 @@ public:
                     self->detach();
                     self->active = false;
                     self->ready = true;
-                    self->failure = boost::beast::error::timeout;
+                    self->failure = ::webcpp::beast_backend::error::timeout;
                     if (self->read) {
                         self->read->complete(self->failure);
                     }
@@ -270,7 +270,7 @@ concept host_stream = std::same_as<std::remove_cvref_t<Stream>, tcp_stream> ||
                       std::same_as<std::remove_cvref_t<Stream>, ssl_stream<tcp_stream>>;
 
 /** Detects forbidden methods in a Fetch method-override field value. */
-inline bool forbidden_method_override(boost::beast::string_view value) {
+inline bool forbidden_method_override(::webcpp::beast_backend::string_view value) {
     // Fetch splits comma-separated values while preserving HTTP quoted strings.
     // https://fetch.spec.whatwg.org/#forbidden-request-header
     while (!value.empty()) {
@@ -293,8 +293,9 @@ inline bool forbidden_method_override(boost::beast::string_view value) {
         while (!method.empty() && (method.back() == ' ' || method.back() == '\t')) {
             method.remove_suffix(1);
         }
-        if (boost::beast::iequals(method, "CONNECT") || boost::beast::iequals(method, "TRACE") ||
-            boost::beast::iequals(method, "TRACK")) {
+        if (::webcpp::beast_backend::iequals(method, "CONNECT") ||
+            ::webcpp::beast_backend::iequals(method, "TRACE") ||
+            ::webcpp::beast_backend::iequals(method, "TRACK")) {
             return true;
         }
         if (length == value.size()) {
@@ -308,7 +309,8 @@ inline bool forbidden_method_override(boost::beast::string_view value) {
 /**
  Detects request headers that the browser owns or may overwrite.
  */
-inline bool forbidden_header(boost::beast::string_view name, boost::beast::string_view value) {
+inline bool forbidden_header(::webcpp::beast_backend::string_view name,
+                             ::webcpp::beast_backend::string_view value) {
     // Fetch's forbidden request headers plus User-Agent, which browsers may overwrite.
     constexpr std::array<std::string_view, 18> names = {
         "accept-charset",
@@ -331,18 +333,18 @@ inline bool forbidden_header(boost::beast::string_view name, boost::beast::strin
         "permissions-policy",
     };
     for (auto const item : names) {
-        if (boost::beast::iequals(name, {item.data(), item.size()})) {
+        if (::webcpp::beast_backend::iequals(name, {item.data(), item.size()})) {
             return true;
         }
     }
     if (name.size() >= 4 &&
-        (boost::beast::iequals(name.substr(0, 4), "sec-") ||
-         (name.size() >= 6 && boost::beast::iequals(name.substr(0, 6), "proxy-")))) {
+        (::webcpp::beast_backend::iequals(name.substr(0, 4), "sec-") ||
+         (name.size() >= 6 && ::webcpp::beast_backend::iequals(name.substr(0, 6), "proxy-")))) {
         return true;
     }
-    if (!boost::beast::iequals(name, "x-http-method") &&
-        !boost::beast::iequals(name, "x-http-method-override") &&
-        !boost::beast::iequals(name, "x-method-override")) {
+    if (!::webcpp::beast_backend::iequals(name, "x-http-method") &&
+        !::webcpp::beast_backend::iequals(name, "x-http-method-override") &&
+        !::webcpp::beast_backend::iequals(name, "x-method-override")) {
         return false;
     }
     return forbidden_method_override(value);
@@ -351,9 +353,9 @@ inline bool forbidden_header(boost::beast::string_view name, boost::beast::strin
 /** Builds fetch headers after applying authority and forbidden-field policy. */
 template <class Body, class Fields>
 emscripten::val fetch_headers(const tcp_stream& stream,
-                              const boost::beast::http::request<Body, Fields>& request,
+                              const ::webcpp::beast_backend::http::request<Body, Fields>& request,
                               std::size_t& count, error_code& ec) {
-    namespace http = boost::beast::http;
+    namespace http = ::webcpp::beast_backend::http;
     auto const headers = emscripten::val::array();
     for (const auto& field : request) {
         count += field.name_string().size() + field.value().size() + 4;
@@ -389,23 +391,24 @@ emscripten::val fetch_headers(const tcp_stream& stream,
  Validates and buffers a complete request before initiating fetch.
  */
 template <class Body, class Fields>
-std::size_t start_fetch(tcp_stream& stream, boost::beast::http::request<Body, Fields>& request,
+std::size_t start_fetch(tcp_stream& stream,
+                        ::webcpp::beast_backend::http::request<Body, Fields>& request,
                         error_code& ec) {
-    namespace http = boost::beast::http;
+    namespace http = ::webcpp::beast_backend::http;
     ec.clear();
     if (!stream.is_open()) {
-        ec = boost::asio::error::not_connected;
+        ec = ::webcpp::asio_backend::error::not_connected;
         return 0;
     }
     auto const state = detail::browser::http(stream);
     if (state->active || state->ready || state->read) {
-        ec = boost::asio::error::already_started;
+        ec = ::webcpp::asio_backend::error::already_started;
         return 0;
     }
     const auto method = request.method();
     if (method == http::verb::connect || method == http::verb::trace ||
         request.method_string() == "TRACK") {
-        ec = boost::asio::error::operation_not_supported;
+        ec = ::webcpp::asio_backend::error::operation_not_supported;
         return 0;
     }
     auto init = emscripten::val::object();
@@ -424,10 +427,11 @@ std::size_t start_fetch(tcp_stream& stream, boost::beast::http::request<Body, Fi
         if (ec) {
             return 0;
         }
-        const auto size = boost::asio::buffer_size(next->first);
+        const auto size = ::webcpp::asio_backend::buffer_size(next->first);
         const auto old = body.size();
         body.resize(old + size);
-        boost::asio::buffer_copy(boost::asio::buffer(body.data() + old, size), next->first);
+        ::webcpp::asio_backend::buffer_copy(::webcpp::asio_backend::buffer(body.data() + old, size),
+                                            next->first);
         if (!next->second) {
             break;
         }
@@ -436,7 +440,7 @@ std::size_t start_fetch(tcp_stream& stream, boost::beast::http::request<Body, Fi
         return 0;
     }
     if (!body.empty() && (method == http::verb::get || method == http::verb::head)) {
-        ec = boost::asio::error::operation_not_supported;
+        ec = ::webcpp::asio_backend::error::operation_not_supported;
         return 0;
     }
     if (request.has_content_length() && request.payload_size() &&
@@ -473,12 +477,13 @@ std::size_t start_fetch(tcp_stream& stream, boost::beast::http::request<Body, Fi
  Copies decoded fetch metadata and body into a Beast response.
  */
 template <class Body, class Fields>
-void map_response(http_state& state, boost::beast::http::response<Body, Fields>& response,
-                  error_code& ec, std::size_t& count, bool header_only = false) {
+void map_response(http_state& state,
+                  ::webcpp::beast_backend::http::response<Body, Fields>& response, error_code& ec,
+                  std::size_t& count, bool header_only = false) {
     if (ec) {
         return;
     }
-    namespace http = boost::beast::http;
+    namespace http = ::webcpp::beast_backend::http;
     response.clear();
     response.version(11);
     response.result(state.response["status"].as<unsigned>());
@@ -492,9 +497,9 @@ void map_response(http_state& state, boost::beast::http::response<Body, Fields>&
         const auto pair = headers[i];
         const auto name = js_text(pair[0], state.resource);
         const auto value = js_text(pair[1], state.resource);
-        if (boost::beast::iequals(name, "content-length") ||
-            boost::beast::iequals(name, "content-encoding") ||
-            boost::beast::iequals(name, "transfer-encoding")) {
+        if (::webcpp::beast_backend::iequals(name, "content-length") ||
+            ::webcpp::beast_backend::iequals(name, "content-encoding") ||
+            ::webcpp::beast_backend::iequals(name, "transfer-encoding")) {
             continue;
         }
         response.insert(name, value);
@@ -522,7 +527,7 @@ void map_response(http_state& state, boost::beast::http::response<Body, Fields>&
     if (!ec && size) {
         std::pmr::vector<std::byte> bytes(size, state.resource);
         webcpp_beast_copy(body.as_handle(), bytes.data(), size);
-        count = reader.put(boost::asio::buffer(bytes), ec);
+        count = reader.put(::webcpp::asio_backend::buffer(bytes), ec);
     }
     if (!ec) {
         reader.finish(ec);
@@ -539,11 +544,11 @@ void map_response(http_state& state, boost::beast::http::response<Body, Fields>&
  */
 template <class Begin>
 void sync_http(tcp_stream& stream, Begin begin, error_code& ec, std::size_t& size) {
-    auto& context = static_cast<webcpp::asio::io_context&>(
-        boost::asio::query(stream.get_executor(), boost::asio::execution::context));
+    auto& context = static_cast<webcpp::asio::io_context&>(::webcpp::asio_backend::query(
+        stream.get_executor(), ::webcpp::asio_backend::execution::context));
     if (context.get_executor().running_in_this_thread() ||
-        boost::asio::use_service<webcpp::asio::browser::bridge>(context).delivering()) {
-        ec = boost::asio::error::operation_not_supported;
+        ::webcpp::asio_backend::use_service<webcpp::asio::browser::bridge>(context).delivering()) {
+        ec = ::webcpp::asio_backend::error::operation_not_supported;
         return;
     }
     bool done = false;
@@ -561,17 +566,19 @@ void sync_http(tcp_stream& stream, Begin begin, error_code& ec, std::size_t& siz
 
 /** Starts a metadata-only or complete response read with the handler associations. */
 template <bool HeaderOnly, host_stream Stream, class Body, class Allocator, class Token>
-auto receive_response(
-    Stream& stream,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response,
-    Token&& token) {
-    return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+auto receive_response(Stream& stream,
+                      ::webcpp::beast_backend::http::response<
+                          Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response,
+                      Token&& token) {
+    return ::webcpp::asio_backend::async_initiate<Token,
+                                                  void(boost::system::error_code, std::size_t)>(
         [&stream, &response](auto handler) {
             auto const state = detail::browser::http(get_lowest_layer(stream));
             if (state->read || (!state->active && !state->ready)) {
                 detail::browser::post(
                     stream.get_executor(), std::move(handler),
-                    boost::system::error_code(boost::asio::error::already_started), std::size_t{});
+                    boost::system::error_code(::webcpp::asio_backend::error::already_started),
+                    std::size_t{});
                 return;
             }
             state->header_only = HeaderOnly;
@@ -584,7 +591,7 @@ auto receive_response(
                     }
                     detail::browser::map_response(*state, response, ec, count, HeaderOnly);
                 },
-                boost::asio::cancellation_type::all,
+                ::webcpp::asio_backend::cancellation_type::all,
                 [state] {
                     state->abort();
                     state->detach();
@@ -620,11 +627,12 @@ namespace webcpp::beast::http {
  @return The result determined by the completion token.
  */
 template <detail::browser::host_stream Stream, class Body, class Allocator, class Token>
-auto async_write(
-    Stream& stream,
-    boost::beast::http::request<Body, boost::beast::http::basic_fields<Allocator>>& request,
-    Token&& token) {
-    return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+auto async_write(Stream& stream,
+                 ::webcpp::beast_backend::http::request<
+                     Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& request,
+                 Token&& token) {
+    return ::webcpp::asio_backend::async_initiate<Token,
+                                                  void(boost::system::error_code, std::size_t)>(
         [&stream, &request](auto handler) {
             boost::system::error_code ec;
             const auto size = detail::browser::start_fetch(get_lowest_layer(stream), request, ec);
@@ -644,10 +652,10 @@ auto async_write(
  @return The accepted body and synthetic header byte count.
  */
 template <detail::browser::host_stream Stream, class Body, class Allocator>
-std::size_t write(
-    Stream& stream,
-    boost::beast::http::request<Body, boost::beast::http::basic_fields<Allocator>>& request,
-    boost::system::error_code& ec) {
+std::size_t write(Stream& stream,
+                  ::webcpp::beast_backend::http::request<
+                      Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& request,
+                  boost::system::error_code& ec) {
     return detail::browser::start_fetch(get_lowest_layer(stream), request, ec);
 }
 
@@ -661,9 +669,9 @@ std::size_t write(
  @return The accepted body and synthetic header byte count.
  */
 template <detail::browser::host_stream Stream, class Body, class Allocator>
-std::size_t write(
-    Stream& stream,
-    boost::beast::http::request<Body, boost::beast::http::basic_fields<Allocator>>& request) {
+std::size_t write(Stream& stream,
+                  ::webcpp::beast_backend::http::request<
+                      Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& request) {
     boost::system::error_code ec;
     const auto n = write(stream, request, ec);
     detail::browser::throw_error(ec);
@@ -689,10 +697,10 @@ std::size_t write(
  */
 template <detail::browser::host_stream Stream, class Buffer, class Body, class Allocator,
           class Token>
-auto async_read(
-    Stream& stream, Buffer& /*unused*/,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response,
-    Token&& token) {
+auto async_read(Stream& stream, Buffer& /*unused*/,
+                ::webcpp::beast_backend::http::response<
+                    Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response,
+                Token&& token) {
     return detail::browser::receive_response<false>(stream, response, std::forward<Token>(token));
 }
 
@@ -712,10 +720,10 @@ auto async_read(
  @return The number of decoded body bytes delivered.
  */
 template <detail::browser::host_stream Stream, class Buffer, class Body, class Allocator>
-std::size_t read(
-    Stream& stream, Buffer& buffer,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response,
-    boost::system::error_code& ec) {
+std::size_t read(Stream& stream, Buffer& buffer,
+                 ::webcpp::beast_backend::http::response<
+                     Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response,
+                 boost::system::error_code& ec) {
     std::size_t size = 0;
     detail::browser::sync_http(
         get_lowest_layer(stream),
@@ -738,9 +746,9 @@ std::size_t read(
  @return The number of decoded body bytes delivered.
  */
 template <detail::browser::host_stream Stream, class Buffer, class Body, class Allocator>
-std::size_t read(
-    Stream& stream, Buffer& buffer,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response) {
+std::size_t read(Stream& stream, Buffer& buffer,
+                 ::webcpp::beast_backend::http::response<
+                     Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response) {
     boost::system::error_code ec;
     const auto n = read(stream, buffer, response, ec);
     detail::browser::throw_error(ec);
@@ -763,10 +771,10 @@ std::size_t read(
  */
 template <detail::browser::host_stream Stream, class Buffer, class Body, class Allocator,
           class Token>
-auto async_read_header(
-    Stream& stream, Buffer& /*unused*/,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response,
-    Token&& token) {
+auto async_read_header(Stream& stream, Buffer& /*unused*/,
+                       ::webcpp::beast_backend::http::response<
+                           Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response,
+                       Token&& token) {
     return detail::browser::receive_response<true>(stream, response, std::forward<Token>(token));
 }
 
@@ -785,10 +793,10 @@ auto async_read_header(
  @return The logical HTTP status-line and field byte count, excluding the body.
  */
 template <detail::browser::host_stream Stream, class Buffer, class Body, class Allocator>
-std::size_t read_header(
-    Stream& stream, Buffer& buffer,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response,
-    boost::system::error_code& ec) {
+std::size_t read_header(Stream& stream, Buffer& buffer,
+                        ::webcpp::beast_backend::http::response<
+                            Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response,
+                        boost::system::error_code& ec) {
     std::size_t count = 0;
     detail::browser::sync_http(
         get_lowest_layer(stream),
@@ -810,7 +818,8 @@ std::size_t read_header(
 template <detail::browser::host_stream Stream, class Buffer, class Body, class Allocator>
 std::size_t read_header(
     Stream& stream, Buffer& buffer,
-    boost::beast::http::response<Body, boost::beast::http::basic_fields<Allocator>>& response) {
+    ::webcpp::beast_backend::http::response<
+        Body, ::webcpp::beast_backend::http::basic_fields<Allocator>>& response) {
     boost::system::error_code ec;
     auto count = read_header(stream, buffer, response, ec);
     detail::browser::throw_error(ec);

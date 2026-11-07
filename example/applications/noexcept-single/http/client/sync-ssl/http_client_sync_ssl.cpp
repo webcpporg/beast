@@ -34,18 +34,18 @@
 
 #include "common/root_certificates.hpp"
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl.hpp>
 #include <cstdlib>
 #include <iostream>
+#include <webcpp/asio/connect.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
+#include <webcpp/asio/ssl.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;    // from <webcpp/beast.hpp>
 namespace http = beast::http;       // from <webcpp/beast/http.hpp>
-namespace net = boost::asio;        // from <boost/asio.hpp>
-namespace ssl = net::ssl;           // from <boost/asio/ssl.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+namespace ssl = net::ssl;           // from <webcpp/asio/ssl.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 // Performs an HTTP GET and prints the response
 // The process entry point retains the standard char** argv signature.

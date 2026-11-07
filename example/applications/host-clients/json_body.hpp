@@ -26,10 +26,10 @@
 #define BOOST_BEAST_EXAMPLE_JSON_BODY
 
 #include <array>
-#include <boost/asio/buffer.hpp>
 #include <boost/json.hpp>
 #include <boost/json/monotonic_resource.hpp>
 #include <boost/json/stream_parser.hpp>
+#include <webcpp/asio/buffer.hpp>
 #include <webcpp/beast/http.hpp>
 
 namespace json = boost::json;
@@ -38,10 +38,10 @@ struct json_body {
     using value_type = json::value;
 
     struct writer {
-        using const_buffers_type = boost::asio::const_buffer;
+        using const_buffers_type = webcpp::asio::const_buffer;
 
         template <bool isRequest, class Fields>
-        writer(boost::beast::http::header<isRequest, Fields> const& /*unused*/,
+        writer(webcpp::beast::http::header<isRequest, Fields> const& /*unused*/,
                value_type const& body) {
             // The serializer holds a pointer to the value, so all we need to do is to reset it.
             serializer_.reset(&body);
@@ -58,7 +58,7 @@ struct json_body {
             ec = {};
             // We serialize as much as we can with the buffer. Often that'll suffice
             const auto len = serializer_.read(buffer_.data(), buffer_.size());
-            return std::make_pair(boost::asio::const_buffer(len.data(), len.size()),
+            return std::make_pair(webcpp::asio::const_buffer(len.data(), len.size()),
                                   !serializer_.done());
         }
 
@@ -70,7 +70,7 @@ struct json_body {
 
     struct reader {
         template <bool isRequest, class Fields>
-        reader(boost::beast::http::header<isRequest, Fields>& /*unused*/, value_type& body)
+        reader(webcpp::beast::http::header<isRequest, Fields>& /*unused*/, value_type& body)
             : body_(body) {}
 
         void init(boost::optional<std::uint64_t> const& content_length,

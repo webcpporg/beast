@@ -7,13 +7,13 @@
 // Native Beast peers shared by the browser and Node contracts. The driver owns
 // this process and bounds its lifetime, including deliberately stalled sessions.
 #include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <webcpp/asio/ssl.hpp>
 #include <webcpp/beast/core.hpp>
 #include <webcpp/beast/http.hpp>
 #include <webcpp/beast/http/read.hpp>
@@ -24,7 +24,7 @@
 
 namespace {
 namespace beast = webcpp::beast;
-namespace net = boost::asio;
+namespace net = webcpp::asio;
 namespace ssl = net::ssl;
 using net::ip::tcp;
 

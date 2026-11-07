@@ -10,34 +10,39 @@
 #include <webcpp/beast/config.hpp>
 
 #if defined(WEBCPP_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3)
-#include <boost/beast/websocket.hpp>  // lint-world: explicit guest WebSocket protocol engine
+#include WEBCPP_BEAST_BACKEND_HEADER(websocket.hpp)  // lint-world: explicit guest WebSocket protocol engine
 
 #include <memory>
 #include <type_traits>
 #include <utility>
 
 namespace webcpp::beast::websocket {
+using namespace ::webcpp::beast_backend::websocket;
 /** Reports whether a request asks for a WebSocket upgrade. */
-using boost::beast::websocket::is_upgrade;
+using ::webcpp::beast_backend::websocket::is_upgrade;
 /** Upstream WebSocket closing status codes. */
-using boost::beast::websocket::close_code;
+using ::webcpp::beast_backend::websocket::close_code;
 /** Upstream WebSocket close code and UTF-8 reason. */
-using boost::beast::websocket::close_reason;
+using ::webcpp::beast_backend::websocket::close_reason;
 /** Upstream WebSocket operation errors. */
-using boost::beast::websocket::error;
+using ::webcpp::beast_backend::websocket::error;
 /** WebSocket control-frame category. */
-using boost::beast::websocket::frame_type;
+using ::webcpp::beast_backend::websocket::frame_type;
 /** Bounded WebSocket ping or pong payload. */
-using boost::beast::websocket::ping_data;
+using ::webcpp::beast_backend::websocket::ping_data;
 /** Upstream per-message compression settings. */
-using boost::beast::websocket::permessage_deflate;
+using ::webcpp::beast_backend::websocket::permessage_deflate;
 /** Upstream handshake request type. */
-using boost::beast::websocket::request_type;
+using ::webcpp::beast_backend::websocket::request_type;
 /** Upstream handshake response type. */
-using boost::beast::websocket::response_type;
+using ::webcpp::beast_backend::websocket::response_type;
 /** Upstream WebSocket timeout and decorator settings. */
-using boost::beast::websocket::stream_base;
+using ::webcpp::beast_backend::websocket::stream_base;
 
+#ifdef WEBCPP_TARGET_NATIVE
+/** The original Boost.Beast stream, retaining native type identity and constructors. */
+using ::webcpp::beast_backend::websocket::stream;
+#else
 /**
  Runs the upstream WebSocket protocol over an explicitly selected byte stream.
 
@@ -47,8 +52,8 @@ using boost::beast::websocket::stream_base;
  handler allocators are preserved by upstream operations.
 */
 template <class NextLayer, bool DeflateSupported = true>
-class stream : public boost::beast::websocket::stream<NextLayer, DeflateSupported> {
-    using base = boost::beast::websocket::stream<NextLayer, DeflateSupported>;
+class stream : public ::webcpp::beast_backend::websocket::stream<NextLayer, DeflateSupported> {
+    using base = ::webcpp::beast_backend::websocket::stream<NextLayer, DeflateSupported>;
 
 public:
     /**
@@ -105,6 +110,7 @@ public:
                     [[maybe_unused]] const Allocator& allocator, Args&&... args)
         : base(std::forward<Args>(args)...) {}
 };
+#endif  // WEBCPP_TARGET_NATIVE
 }  // namespace webcpp::beast::websocket
 #elif defined(WEBCPP_TARGET_EMSCRIPTEN)
 #include <webcpp/beast/browser/websocket.hpp>

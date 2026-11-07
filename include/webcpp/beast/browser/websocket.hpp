@@ -9,14 +9,14 @@
 
 #include <webcpp/beast/config.hpp>
 
-#include <boost/asio/buffer.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/steady_timer.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/beast/core/error.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/core/role.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/websocket/error.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/websocket/option.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/websocket/rfc6455.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/websocket/stream_base.hpp>  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_ASIO_BACKEND_HEADER(buffer.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(steady_timer.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_BEAST_BACKEND_HEADER(core/error.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(core/role.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(websocket/error.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(websocket/option.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(websocket/rfc6455.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(websocket/stream_base.hpp)  // lint-world: portable protocol data and explicit stream algorithms
 #include <limits>
 #include <list>
 #include <optional>
@@ -29,7 +29,7 @@
 // NOLINTNEXTLINE(modernize-concat-nested-namespaces): policy selects an inline namespace
 namespace webcpp::beast {
 /** Client or server role used by protocol options. */
-using boost::beast::role_type;
+using ::webcpp::beast_backend::role_type;
 #ifdef WEBCPP_BEAST_UNSUPPORTED_IGNORE
 inline namespace unsupported_ignore {
 #else
@@ -37,23 +37,23 @@ inline namespace unsupported_error {
 #endif
 namespace websocket {
 /** WebSocket close status codes. */
-using boost::beast::websocket::close_code;
+using ::webcpp::beast_backend::websocket::close_code;
 /** WebSocket close status and UTF-8 explanation. */
-using boost::beast::websocket::close_reason;
+using ::webcpp::beast_backend::websocket::close_reason;
 /** Errors produced by WebSocket protocol operations. */
-using boost::beast::websocket::error;
+using ::webcpp::beast_backend::websocket::error;
 /** Tests whether a request asks to upgrade to WebSocket. */
-using boost::beast::websocket::is_upgrade;
+using ::webcpp::beast_backend::websocket::is_upgrade;
 /** Compatibility record for browser-owned compression negotiation. */
-using boost::beast::websocket::permessage_deflate;
+using ::webcpp::beast_backend::websocket::permessage_deflate;
 /** Payload type for a WebSocket control frame. */
-using boost::beast::websocket::ping_data;
+using ::webcpp::beast_backend::websocket::ping_data;
 /** HTTP request shape supplied to a WebSocket decorator. */
-using request_type = boost::beast::http::request<
-    boost::beast::http::empty_body,
-    boost::beast::http::basic_fields<std::pmr::polymorphic_allocator<char>>>;
+using request_type = ::webcpp::beast_backend::http::request<
+    ::webcpp::beast_backend::http::empty_body,
+    ::webcpp::beast_backend::http::basic_fields<std::pmr::polymorphic_allocator<char>>>;
 /** HTTP response shape used by the guest WebSocket engine. */
-using boost::beast::websocket::response_type;
+using ::webcpp::beast_backend::websocket::response_type;
 /**
  Kind of WebSocket control event.
  */
@@ -73,7 +73,7 @@ struct stream_base {
     /**
      Handshake and idle timeout options shared with Beast.
      */
-    using timeout = boost::beast::websocket::stream_base::timeout;
+    using timeout = ::webcpp::beast_backend::websocket::stream_base::timeout;
 
     /**
      Stores a callable that records the browser-compatible handshake subprotocols.
@@ -132,7 +132,8 @@ struct callback_base {
     /**
      Invokes a control callback when this object stores one.
      */
-    virtual void control(websocket::frame_type /*unused*/, boost::beast::string_view /*unused*/){};
+    virtual void control(websocket::frame_type /*unused*/,
+                         ::webcpp::beast_backend::string_view /*unused*/){};
     /**
      Releases registration and retained state during destruction.
      */
@@ -166,7 +167,7 @@ struct callback final : callback_base {
     /**
      Invokes a control callback when this object stores one.
      */
-    void control(websocket::frame_type kind, boost::beast::string_view value) override {
+    void control(websocket::frame_type kind, ::webcpp::beast_backend::string_view value) override {
         if constexpr (!Decorator) {
             function(kind, value);
         }
@@ -222,7 +223,7 @@ public:
     /**
      Timer enforcing the current operation deadline.
      */
-    boost::asio::steady_timer timer;  // lint-world: browser operation deadline
+    ::webcpp::asio_backend::steady_timer timer;  // lint-world: browser operation deadline
     /**
      Registration key used to reject events from detached operations.
      */
@@ -263,7 +264,7 @@ public:
      Handshake and receive-idle timeout settings.
      */
     websocket::stream_base::timeout timeout =
-        websocket::stream_base::timeout::suggested(boost::beast::role_type::client);
+        websocket::stream_base::timeout::suggested(::webcpp::beast_backend::role_type::client);
     /**
      Send and receive queue bounds enforced by this state.
      */
@@ -323,8 +324,8 @@ public:
     websocket_state(executor_type ex, std::shared_ptr<std::pmr::memory_resource> storage)
         : resource(std::move(storage)),
           executor(std::move(ex)),
-          bridge(&boost::asio::use_service<webcpp::asio::browser::bridge>(
-              boost::asio::query(executor, boost::asio::execution::context))),
+          bridge(&::webcpp::asio_backend::use_service<webcpp::asio::browser::bridge>(
+              ::webcpp::asio_backend::query(executor, ::webcpp::asio_backend::execution::context))),
           timer(executor),
           messages(resource.get()),
           ingress(resource.get()),
@@ -389,12 +390,12 @@ public:
             ingress_posted = true;
             const auto epoch = generation;
             auto const self = shared_from_this();
-            post(executor,
-                 boost::asio::bind_allocator(owning_allocator<std::byte>(resource), [self, epoch] {
-                     if (self->alive && self->generation == epoch) {
-                         self->drain_ingress();
-                     }
-                 }));
+            post(executor, ::webcpp::asio_backend::bind_allocator(
+                               owning_allocator<std::byte>(resource), [self, epoch] {
+                                   if (self->alive && self->generation == epoch) {
+                                       self->drain_ingress();
+                                   }
+                               }));
         }
         return false;
     }
@@ -479,16 +480,16 @@ public:
      */
     void stop() noexcept {
         alive = false;
-        invalidate(boost::asio::error::operation_aborted);
-        finish(boost::asio::error::operation_aborted);
+        invalidate(::webcpp::asio_backend::error::operation_aborted);
+        finish(::webcpp::asio_backend::error::operation_aborted);
     }
 
     /**
      Aborts the WebSocket and completes pending operations as cancelled.
      */
     void cancel_all() {
-        invalidate(boost::asio::error::operation_aborted);
-        finish(boost::asio::error::operation_aborted);
+        invalidate(::webcpp::asio_backend::error::operation_aborted);
+        finish(::webcpp::asio_backend::error::operation_aborted);
     }
 
     /**
@@ -502,11 +503,11 @@ public:
         timer.expires_at(deadline);
         auto const weak = weak_from_this();
         const auto epoch = generation;
-        timer.async_wait(boost::asio::bind_allocator(
+        timer.async_wait(::webcpp::asio_backend::bind_allocator(
             owning_allocator<std::byte>(resource), [weak, epoch](error_code ec) {
                 if (auto const self = weak.lock();
                     self && !ec && self->alive && self->generation == epoch) {
-                    self->invalidate(boost::beast::error::timeout);
+                    self->invalidate(::webcpp::beast_backend::error::timeout);
                     self->finish(self->failure);
                 }
             }));
@@ -516,7 +517,7 @@ public:
      Restarts the receive-idle timer after browser activity.
      */
     void arm_idle() {
-        if (timeout.idle_timeout != boost::beast::websocket::stream_base::none()) {
+        if (timeout.idle_timeout != ::webcpp::beast_backend::websocket::stream_base::none()) {
             arm(::webcpp::beast::detail::browser::clock_type::now() + timeout.idle_timeout);
         } else {
             cancel_timer();
@@ -593,7 +594,7 @@ public:
         cancel_timer();
         reason.code = static_cast<std::uint16_t>(event["code"].as<unsigned>());
         const auto text = js_text(event["reason"], resource.get());
-        reason.reason = boost::beast::string_view(text.data(), text.size());
+        reason.reason = ::webcpp::beast_backend::string_view(text.data(), text.size());
         if (control) {
             control->control(websocket::frame_type::close, reason.reason);
             if (generation != epoch) {
@@ -604,7 +605,7 @@ public:
             if (!was_open && handshake != nullptr) {
                 failure = make_error_code(browser_errc::connection_failed);
             } else if (reason.code == 1006) {
-                failure = boost::asio::error::connection_reset;
+                failure = ::webcpp::asio_backend::error::connection_reset;
             } else {
                 failure = websocket::error::closed;
             }
@@ -627,8 +628,8 @@ public:
     std::size_t copy(const Buffers& buffers, std::size_t maximum_count) {
         auto& message = messages.front();
         auto size = std::min(maximum_count, message.bytes.size() - message.offset);
-        size = boost::asio::buffer_copy(
-            buffers, boost::asio::buffer(message.bytes.data() + message.offset, size));
+        size = ::webcpp::asio_backend::buffer_copy(
+            buffers, ::webcpp::asio_backend::buffer(message.bytes.data() + message.offset, size));
         received_text = message.text;
         message.offset += size;
         message_done = message.offset == message.bytes.size();
@@ -685,8 +686,8 @@ class stream {
 
     void arm(bool handshake = false) {
         auto deadline = get_lowest_layer(next_).expiry();
-        if (handshake &&
-            state_->timeout.handshake_timeout != boost::beast::websocket::stream_base::none()) {
+        if (handshake && state_->timeout.handshake_timeout !=
+                             ::webcpp::beast_backend::websocket::stream_base::none()) {
             deadline = std::min(deadline, ::webcpp::beast::detail::browser::clock_type::now() +
                                               state_->timeout.handshake_timeout);
         }
@@ -697,10 +698,10 @@ class stream {
 
     template <class Begin>
     void sync(Begin begin, ec_type& ec) {
-        auto& context = static_cast<webcpp::asio::io_context&>(
-            boost::asio::query(get_executor(), boost::asio::execution::context));
+        auto& context = static_cast<webcpp::asio::io_context&>(::webcpp::asio_backend::query(
+            get_executor(), ::webcpp::asio_backend::execution::context));
         if (context.get_executor().running_in_this_thread() || state_->bridge->delivering()) {
-            ec = boost::asio::error::operation_not_supported;
+            ec = ::webcpp::asio_backend::error::operation_not_supported;
             return;
         }
         bool done = false;
@@ -741,7 +742,7 @@ class stream {
         }
         auto const protocols = emscripten::val::array();
         for (const auto& field : request) {
-            if (field.name() != boost::beast::http::field::sec_websocket_protocol) {
+            if (field.name() != ::webcpp::beast_backend::http::field::sec_websocket_protocol) {
                 if (auto const error = detail::browser::unsupported()) {
                     ec = error;
                 }
@@ -996,9 +997,9 @@ public:
      @return The result determined by the completion token.
      */
     template <class Token>
-    auto async_handshake(boost::beast::string_view host, boost::beast::string_view target,
-                         Token&& token) {
-        return boost::asio::async_initiate<Token, void(ec_type)>(
+    auto async_handshake(::webcpp::beast_backend::string_view host,
+                         ::webcpp::beast_backend::string_view target, Token&& token) {
+        return ::webcpp::asio_backend::async_initiate<Token, void(ec_type)>(
             [this, host = std::pmr::string(host, state_->resource.get()),
              target = std::pmr::string(target, state_->resource.get())](auto handler) {
                 auto& state = *state_;
@@ -1009,7 +1010,7 @@ public:
                     ec = make_error_code(browser_errc::no_host);
                 }
                 if (state.handshake || state.opened || state.read || state.close) {
-                    ec = boost::asio::error::already_started;
+                    ec = ::webcpp::asio_backend::error::already_started;
                 }
                 const emscripten::val protocols = this->protocols(ec);
                 if (ec) {
@@ -1021,9 +1022,11 @@ public:
                 detail::browser::start<false>(
                     state.handshake, get_executor(), std::move(handler),
                     [](ec_type&, std::size_t&) {},
-                    boost::asio::cancellation_type::terminal |
-                        boost::asio::cancellation_type::partial,
-                    [state = state_] { state->invalidate(boost::asio::error::operation_aborted); });
+                    ::webcpp::asio_backend::cancellation_type::terminal |
+                        ::webcpp::asio_backend::cancellation_type::partial,
+                    [state = state_] {
+                        state->invalidate(::webcpp::asio_backend::error::operation_aborted);
+                    });
                 state.key = state.bridge->add(state);
                 auto const url = detail::browser::js_string(record.url(target, true));
                 const emscripten::val result = emscripten::val::take_ownership(
@@ -1076,11 +1079,11 @@ public:
      */
     template <class DynamicBuffer, class Token>
     auto async_read_some(DynamicBuffer& buffer, std::size_t maximum, Token&& token) {
-        return boost::asio::async_initiate<Token, void(ec_type, std::size_t)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(ec_type, std::size_t)>(
             [this, &buffer, maximum](auto handler) {
                 if (state_->read) {
                     detail::browser::post(get_executor(), std::move(handler),
-                                          ec_type(boost::asio::error::already_started),
+                                          ec_type(::webcpp::asio_backend::error::already_started),
                                           std::size_t{});
                     return;
                 }
@@ -1093,20 +1096,20 @@ public:
                         auto const& message = state->messages.front();
                         const auto size = std::min(maximum, message.bytes.size() - message.offset);
                         if (size > buffer.max_size() - buffer.size()) {
-                            ec = boost::asio::error::no_buffer_space;
+                            ec = ::webcpp::asio_backend::error::no_buffer_space;
                             return;
                         }
                         count = state->copy(buffer.prepare(size), size);
                         buffer.commit(count);
                     },
-                    boost::asio::cancellation_type::all,
+                    ::webcpp::asio_backend::cancellation_type::all,
                     [state = state_] { state->cancel_read(); });
                 if (!state_->messages.empty()) {
                     state_->read->complete();
                 } else if (state_->failure) {
                     state_->read->complete(state_->failure);
                 } else if (!state_->opened) {
-                    state_->read->complete(boost::asio::error::not_connected);
+                    state_->read->complete(::webcpp::asio_backend::error::not_connected);
                 } else {
                     arm();
                 }
@@ -1129,11 +1132,11 @@ public:
      */
     template <class Buffers, class Token>
     auto async_read_some(const Buffers& buffers, Token&& token) {
-        return boost::asio::async_initiate<Token, void(ec_type, std::size_t)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(ec_type, std::size_t)>(
             [this, buffers](auto handler) {
                 if (state_->read) {
                     detail::browser::post(get_executor(), std::move(handler),
-                                          ec_type(boost::asio::error::already_started),
+                                          ec_type(::webcpp::asio_backend::error::already_started),
                                           std::size_t{});
                     return;
                 }
@@ -1141,17 +1144,18 @@ public:
                     state_->read, get_executor(), std::move(handler),
                     [state = state_, buffers](ec_type& ec, std::size_t& count) {
                         if (!ec) {
-                            count = state->copy(buffers, boost::asio::buffer_size(buffers));
+                            count =
+                                state->copy(buffers, ::webcpp::asio_backend::buffer_size(buffers));
                         }
                     },
-                    boost::asio::cancellation_type::all,
+                    ::webcpp::asio_backend::cancellation_type::all,
                     [state = state_] { state->cancel_read(); });
                 if (!state_->messages.empty()) {
                     state_->read->complete();
                 } else if (state_->failure) {
                     state_->read->complete(state_->failure);
                 } else if (!state_->opened) {
-                    state_->read->complete(boost::asio::error::not_connected);
+                    state_->read->complete(::webcpp::asio_backend::error::not_connected);
                 } else {
                     arm();
                 }
@@ -1172,11 +1176,11 @@ public:
      */
     template <class Buffers>
     std::size_t write_some(bool fin, const Buffers& buffers, ec_type& ec) {
-        const auto count = boost::asio::buffer_size(buffers);
+        const auto count = ::webcpp::asio_backend::buffer_size(buffers);
         auto& state = *state_;
         ec.clear();
         if (!state.opened) {
-            ec = boost::asio::error::not_connected;
+            ec = ::webcpp::asio_backend::error::not_connected;
             return 0;
         }
         const auto queued = static_cast<std::size_t>(state.socket["bufferedAmount"].as<double>());
@@ -1189,11 +1193,12 @@ public:
         }
         const auto old = state.fragments.size();
         state.fragments.resize(old + count);
-        boost::asio::buffer_copy(boost::asio::buffer(state.fragments.data() + old, count), buffers);
+        ::webcpp::asio_backend::buffer_copy(
+            ::webcpp::asio_backend::buffer(state.fragments.data() + old, count), buffers);
         if (fin) {
             if (webcpp_beast_send(state.socket.as_handle(), state.fragments.data(),
                                   state.fragments.size(), state.send_text)) {
-                ec = boost::asio::error::connection_reset;
+                ec = ::webcpp::asio_backend::error::connection_reset;
             }
             state.fragments.clear();
         }
@@ -1248,7 +1253,7 @@ public:
      */
     template <class Buffers, class Token>
     auto async_write_some(bool fin, const Buffers& buffers, Token&& token) {
-        return boost::asio::async_initiate<Token, void(ec_type, std::size_t)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(ec_type, std::size_t)>(
             [this, fin, buffers](auto handler) {
                 ec_type ec;
                 auto count = write_some(fin, buffers, ec);
@@ -1287,15 +1292,15 @@ public:
      */
     template <class Token>
     auto async_close(close_reason reason, Token&& token) {
-        return boost::asio::async_initiate<Token, void(ec_type)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(ec_type)>(
             [this, reason](auto handler) mutable {
                 auto ec = detail::browser::unsupported(reason.code != 1000 &&
                                                        (reason.code < 3000 || reason.code > 4999));
                 if (state_->close) {
-                    ec = boost::asio::error::already_started;
+                    ec = ::webcpp::asio_backend::error::already_started;
                 }
                 if (!state_->opened) {
-                    ec = boost::asio::error::not_connected;
+                    ec = ::webcpp::asio_backend::error::not_connected;
                 }
                 if (ec) {
                     detail::browser::post(get_executor(), std::move(handler), ec);
@@ -1307,8 +1312,8 @@ public:
                 detail::browser::start<false>(
                     state_->close, get_executor(), std::move(handler),
                     [](ec_type&, std::size_t&) {},
-                    boost::asio::cancellation_type::terminal |
-                        boost::asio::cancellation_type::partial,
+                    ::webcpp::asio_backend::cancellation_type::terminal |
+                        ::webcpp::asio_backend::cancellation_type::partial,
                     [] {});
                 webcpp_beast_close(state_->socket.as_handle(), reason.code,
                                    detail::browser::js_string(reason.reason).as_handle());
@@ -1328,7 +1333,7 @@ public:
      */
     template <class Token>
     auto async_ping(const ping_data& /*unused*/, Token&& token) {
-        return boost::asio::async_initiate<Token, void(ec_type)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(ec_type)>(
             [this](auto handler) {
                 detail::browser::post(get_executor(), std::move(handler),
                                       detail::browser::unsupported());
@@ -1360,7 +1365,8 @@ public:
      @param target Origin-form path and query for the browser URL.
      @param ec Receives the operation error, or is cleared on success.
      */
-    void handshake(boost::beast::string_view host, boost::beast::string_view target, ec_type& ec) {
+    void handshake(::webcpp::beast_backend::string_view host,
+                   ::webcpp::beast_backend::string_view target, ec_type& ec) {
         sync([&](auto handler) { async_handshake(host, target, std::move(handler)); }, ec);
     }
 
@@ -1372,7 +1378,8 @@ public:
      @param host Hostname to match against the recorded destination authority.
      @param target Origin-form path and query for the browser URL.
      */
-    void handshake(boost::beast::string_view host, boost::beast::string_view target) {
+    void handshake(::webcpp::beast_backend::string_view host,
+                   ::webcpp::beast_backend::string_view target) {
         ec_type ec;
         handshake(host, target, ec);
         detail::browser::throw_error(ec);

@@ -289,7 +289,7 @@
          return EXIT_FAILURE;
      }
      auto const host = argv[1];
-@@ -236,23 +195,49 @@
+@@ -236,23 +195,53 @@
      auto const target = argv[3];
      int version = argc == 5 && !std::strcmp("1.0", argv[4]) ? 10 : 11;
  
@@ -325,10 +325,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"http-client-async-ssl-system-executor", "127.0.0.1", port,
++        std::vector<std::string> storage{"http-client-async-ssl-system-executor", "localhost", port,
 +                                         "/http"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
@@ -642,7 +646,7 @@
  
      // Verify the remote server's certificate
      ctx.set_verify_mode(ssl::verify_peer);
-@@ -243,14 +202,36 @@
+@@ -243,14 +202,40 @@
      // Launch the asynchronous operation
      // The session is constructed with a strand to
      // ensure that handlers do not execute concurrently.
@@ -666,10 +670,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"http-client-async-ssl", "127.0.0.1", port, "/http"};
++        std::vector<std::string> storage{"http-client-async-ssl", "localhost", port, "/http"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
 +            arguments.push_back(value.data());
@@ -903,7 +911,7 @@
          return EXIT_FAILURE;
      }
      auto const host = argv[1];
-@@ -176,14 +153,39 @@
+@@ -176,14 +153,43 @@
      int version = argc == 5 && !std::strcmp("1.0", argv[4]) ? 10 : 11;
  
      // The io_context is required for all I/O
@@ -927,8 +935,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"http-client-async", "127.0.0.1", port, "/http"};
 +        std::vector<char*> arguments;
@@ -1170,19 +1182,19 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -188,11 +182,34 @@
+@@ -187,12 +181,35 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int application_main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
- 
- #endif
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
++#error "This application requires its declared Asio backend"
++
++#endif
 +
 +#include <emscripten/val.h>
 +#include <sstream>
@@ -1190,10 +1202,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"http-client-awaitable-ssl", "127.0.0.1", port, "/http"};
++        std::vector<std::string> storage{"http-client-awaitable-ssl", "localhost", port, "/http"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
 +            arguments.push_back(value.data());
@@ -1207,7 +1223,9 @@
 +    }
 +    std::cout << "application http-client-awaitable-ssl: passed\n";
 +    return 0;
-+}
+ }
+-
+-#endif
 --- upstream/http/client/awaitable/http_client_awaitable.cpp
 +++ browser/http/client/awaitable/http_client_awaitable.cpp
 @@ -1,3 +1,20 @@
@@ -1383,17 +1401,18 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -135,11 +141,34 @@
+@@ -134,12 +140,35 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int application_main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
  
  #endif
 +
@@ -1403,8 +1422,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"http-client-awaitable", "127.0.0.1", port, "/http"};
 +        std::vector<char*> arguments;
@@ -1656,7 +1679,7 @@
      // This buffer is used for reading and must be persisted
      beast::flat_buffer buffer;
  
-@@ -56,6 +72,30 @@
+@@ -56,6 +72,34 @@
      beast::error_code ec;
      stream.socket().shutdown(tcp::socket::shutdown_both, ec);
  
@@ -1670,8 +1693,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"json_client"};
 +        std::vector<char*> arguments;
@@ -2080,7 +2107,7 @@
      using clock_type = chrono::system_clock;
  
      clock_type::time_point when_;
-@@ -327,79 +257,60 @@
+@@ -327,79 +257,64 @@
  public:
      using duration = clock_type::duration;
  
@@ -2182,8 +2209,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"http-crawl", "2"};
 +        std::vector<char*> arguments;
@@ -12540,7 +12571,7 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -223,3 +212,28 @@
+@@ -223,3 +212,32 @@
  }
  
  //]
@@ -12551,8 +12582,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    for (const auto* method : {"get", "head", "post", "put", "patch", "delete"}) {
 +        std::vector<std::string> storage{"http-client-methods", method};
 +        std::vector<char*> arguments;
@@ -12691,7 +12726,7 @@
  
          // Send the HTTP request to the remote host
          http::write(stream, req);
-@@ -127,13 +134,36 @@
+@@ -127,13 +134,40 @@
          // Therefore, if we see a short read here, it has occurred
          // after the message has been completed, so it is safe to ignore it.
  
@@ -12714,10 +12749,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"http-client-sync-ssl", "127.0.0.1", port, "/http"};
++        std::vector<std::string> storage{"http-client-sync-ssl", "localhost", port, "/http"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
 +            arguments.push_back(value.data());
@@ -12840,7 +12879,7 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -103,3 +114,28 @@
+@@ -103,3 +114,32 @@
  }
  
  //]
@@ -12851,8 +12890,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"http-client-sync", "127.0.0.1", port, "/http"};
 +        std::vector<char*> arguments;
@@ -13165,7 +13208,7 @@
              return fail(ec, "close");
  
          // If we get here then the connection is closed gracefully
-@@ -236,38 +186,61 @@
+@@ -236,38 +186,65 @@
  
  //------------------------------------------------------------------------------
  
@@ -13221,10 +13264,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"websocket-client-async-ssl-system-executor", "127.0.0.1",
++        std::vector<std::string> storage{"websocket-client-async-ssl-system-executor", "localhost",
 +                                         port, "Beast fixture echo"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
@@ -13554,7 +13601,7 @@
          return EXIT_FAILURE;
      }
      auto const host = argv[1];
-@@ -244,23 +192,49 @@
+@@ -244,23 +192,53 @@
      auto const text = argv[3];
  
      // The io_context is required for all I/O
@@ -13589,10 +13636,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"websocket-client-async-ssl", "127.0.0.1", port,
++        std::vector<std::string> storage{"websocket-client-async-ssl", "localhost", port,
 +                                         "Beast fixture echo"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
@@ -13879,7 +13930,7 @@
          return EXIT_FAILURE;
      }
      auto const host = argv[1];
-@@ -210,14 +170,40 @@
+@@ -210,14 +170,44 @@
      auto const text = argv[3];
  
      // The io_context is required for all I/O
@@ -13903,8 +13954,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"websocket-client-async", "127.0.0.1", port,
 +                                         "Beast fixture echo"};
@@ -14090,17 +14145,18 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -138,11 +135,35 @@
+@@ -137,12 +134,36 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int application_main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
  
  #endif
 +
@@ -14110,8 +14166,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"websocket-client-awaitable", "127.0.0.1", port,
 +                                         "Beast fixture echo"};
@@ -14266,7 +14326,7 @@
  
          // Perform the websocket handshake
          ws.handshake(host, "/");
-@@ -119,11 +121,35 @@
+@@ -119,11 +121,39 @@
  
          // The make_printable() function helps print a ConstBufferSequence
          std::cout << beast::make_printable(buffer.data()) << std::endl;
@@ -14286,10 +14346,14 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("beastSecurePort").as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "localhost", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
-+        std::vector<std::string> storage{"websocket-client-sync-ssl", "127.0.0.1", port,
++        std::vector<std::string> storage{"websocket-client-sync-ssl", "localhost", port,
 +                                         "Beast fixture echo"};
 +        std::vector<char*> arguments;
 +        for (auto& value : storage)
@@ -14425,7 +14489,7 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -103,3 +109,29 @@
+@@ -103,3 +109,33 @@
  }
  
  //]
@@ -14436,8 +14500,12 @@
 +
 +int main() {
 +    const auto port = emscripten::val::global("location")["port"].as<std::string>();
-+    setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1);
-+    setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1);
++    if (setenv("WEBCPP_BEAST_FIXTURE_HOST", "127.0.0.1", 1) != 0) {
++        return 1;
++    }
++    if (setenv("WEBCPP_BEAST_FIXTURE_PORT", port.c_str(), 1) != 0) {
++        return 1;
++    }
 +    {
 +        std::vector<std::string> storage{"websocket-client-sync", "127.0.0.1", port,
 +                                         "Beast fixture echo"};

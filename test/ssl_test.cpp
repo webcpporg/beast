@@ -23,7 +23,8 @@ int main() {
     webcpp::asio::io_context context;
     webcpp::asio::ssl::context tls(webcpp::asio::ssl::context::tls_client);
     beast::ssl_stream<beast::tcp_stream> stream(context, tls);
-    static_assert(std::is_same_v<decltype(stream), boost::beast::ssl_stream<beast::tcp_stream>>);
+    static_assert(
+        std::is_same_v<decltype(stream), webcpp::beast_backend::ssl_stream<beast::tcp_stream>>);
     const std::array source{'l', 'o', 'c', 'a', 'l', 'h', 'o', 's', 't', 'x', 'x', 'x', 'x', 'x'};
     const std::string_view host(source.data(), 9);
     BOOST_TEST(beast::set_server_name(stream, host).has_value());

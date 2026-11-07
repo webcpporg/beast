@@ -132,7 +132,7 @@ int main() {
     wasi::stream_control control;
     control.cancelled = [](void*) { return true; };
     channel.control(control);
-    channel.write_some(boost::asio::buffer("x", 1), error);
+    channel.write_some(webcpp::asio::buffer("x", 1), error);
     BOOST_TEST(error == boost::system::errc::operation_canceled);
     return boost::report_errors();
 }

@@ -11,56 +11,56 @@
 
 #include <webcpp/beast/browser/error.hpp>
 
-#include <boost/beast/core/bind_handler.hpp>        // lint-world: binds handler arguments only
-#include <boost/beast/core/buffers_prefix.hpp>      // lint-world: buffer-sequence views only
-#include <boost/beast/core/buffers_to_string.hpp>   // lint-world: copies memory buffers only
-#include <boost/beast/core/error.hpp>               // lint-world: error codes only
-#include <boost/beast/core/file_base.hpp>           // lint-world: file access mode enumeration
-#include <boost/beast/core/flat_buffer.hpp>         // lint-world: memory buffers only
-#include <boost/beast/core/flat_static_buffer.hpp>  // lint-world: fixed-capacity memory buffers
-#include <boost/beast/core/make_printable.hpp>      // lint-world: buffer output formatting only
-#include <boost/beast/core/multi_buffer.hpp>        // lint-world: memory buffers only
-#include <boost/beast/core/ostream.hpp>             // lint-world: writes into memory buffers
-#include <boost/beast/core/static_buffer.hpp>       // lint-world: memory buffers only
-#include <boost/beast/core/string.hpp>              // lint-world: string comparison only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/bind_handler.hpp)  // lint-world: binds handler arguments only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/buffers_prefix.hpp)  // lint-world: buffer-sequence views only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/buffers_to_string.hpp)  // lint-world: copies memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/error.hpp)              // lint-world: error codes only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/file_base.hpp)  // lint-world: file access mode enumeration
+#include WEBCPP_BEAST_BACKEND_HEADER(core/flat_buffer.hpp)  // lint-world: memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/flat_static_buffer.hpp)  // lint-world: fixed-capacity memory buffers
+#include WEBCPP_BEAST_BACKEND_HEADER(core/make_printable.hpp)  // lint-world: buffer output formatting only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/multi_buffer.hpp)  // lint-world: memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/ostream.hpp)  // lint-world: writes into memory buffers
+#include WEBCPP_BEAST_BACKEND_HEADER(core/static_buffer.hpp)  // lint-world: memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/string.hpp)         // lint-world: string comparison only
 
 namespace webcpp::beast {
 /** Upstream contiguous dynamic buffer with an application-supplied allocator. */
-using boost::beast::basic_flat_buffer;
+using ::webcpp::beast_backend::basic_flat_buffer;
 /** Upstream segmented dynamic buffer with an application-supplied allocator. */
-using boost::beast::basic_multi_buffer;
+using ::webcpp::beast_backend::basic_multi_buffer;
 /** Binds leading arguments to a completion handler. */
-using boost::beast::bind_front_handler;
+using ::webcpp::beast_backend::bind_front_handler;
 /** Returns a view of the first bytes of a buffer sequence. */
-using boost::beast::buffers_prefix;
+using ::webcpp::beast_backend::buffers_prefix;
 /** Copies a buffer sequence to a string. */
-using boost::beast::buffers_to_string;
+using ::webcpp::beast_backend::buffers_to_string;
 /** Upstream common stream errors, including timeout. */
-using boost::beast::error;
+using ::webcpp::beast_backend::error;
 /** The error-code type used by Beast operations. */
-using boost::beast::error_code;
+using ::webcpp::beast_backend::error_code;
 /** Upstream generic error conditions. */
-namespace errc = boost::beast::errc;
+namespace errc = ::webcpp::beast_backend::errc;
 /** Upstream file-opening modes for explicit file bodies. */
-using boost::beast::file_mode;
+using ::webcpp::beast_backend::file_mode;
 /** Upstream contiguous dynamic buffer. */
-using boost::beast::flat_buffer;
+using ::webcpp::beast_backend::flat_buffer;
 /** Upstream contiguous buffer with fixed capacity. */
-using boost::beast::flat_static_buffer;
+using ::webcpp::beast_backend::flat_static_buffer;
 /** Compares strings with HTTP's ASCII case-insensitive rules. */
-using boost::beast::iequals;
+using ::webcpp::beast_backend::iequals;
 /** Formats a buffer sequence for diagnostic output. */
-using boost::beast::make_printable;
+using ::webcpp::beast_backend::make_printable;
 /** Upstream segmented dynamic buffer. */
-using boost::beast::multi_buffer;
+using ::webcpp::beast_backend::multi_buffer;
 /** Creates an output stream that appends to a dynamic buffer. */
-using boost::beast::ostream;
+using ::webcpp::beast_backend::ostream;
 /** Upstream fixed-capacity buffer. */
-using boost::beast::static_buffer;
+using ::webcpp::beast_backend::static_buffer;
 /** Upstream non-owning string view. */
-using boost::beast::string_view;
+using ::webcpp::beast_backend::string_view;
 /** Upstream exception type for explicitly throwing application code. */
-using boost::beast::system_error;
+using ::webcpp::beast_backend::system_error;
 }  // namespace webcpp::beast
 
 #endif

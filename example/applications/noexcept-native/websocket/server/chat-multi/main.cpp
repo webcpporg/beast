@@ -39,10 +39,10 @@
 #include "listener.hpp"
 #include "shared_state.hpp"
 
-#include <boost/asio/signal_set.hpp>
 #include <boost/smart_ptr.hpp>
 #include <iostream>
 #include <vector>
+#include <webcpp/asio/signal_set.hpp>
 
 // The process entry point retains its standard char** argv signature.
 // NOLINTNEXTLINE(misc-const-correctness)

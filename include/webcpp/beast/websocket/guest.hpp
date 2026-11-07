@@ -11,7 +11,7 @@
 
 #include <webcpp/beast/websocket.hpp>
 #ifdef WEBCPP_TARGET_EMSCRIPTEN
-#include <boost/beast/websocket.hpp>  // lint-world: explicitly selected guest protocol engine
+#include WEBCPP_BEAST_BACKEND_HEADER(websocket.hpp)  // lint-world: explicitly selected guest protocol engine
 #include <functional>
 #include <webcpp/asio/basic_stream_socket.hpp>
 
@@ -32,8 +32,8 @@ template <class NextLayer, bool DeflateSupported>
     requires(!std::is_same_v<NextLayer, tcp_stream> &&
              !std::is_same_v<NextLayer, ssl_stream<tcp_stream>>)
 class stream<NextLayer, DeflateSupported>
-    : public boost::beast::websocket::stream<NextLayer, DeflateSupported> {
-    using base = boost::beast::websocket::stream<NextLayer, DeflateSupported>;
+    : public ::webcpp::beast_backend::websocket::stream<NextLayer, DeflateSupported> {
+    using base = ::webcpp::beast_backend::websocket::stream<NextLayer, DeflateSupported>;
     std::shared_ptr<std::pmr::memory_resource> memory_;
 
 public:
@@ -46,10 +46,10 @@ public:
      */
     template <class Function>
     void set_option(stream_base::decorator<Function> option) {
-        base::set_option(boost::beast::websocket::stream_base::decorator(
+        base::set_option(::webcpp::beast_backend::websocket::stream_base::decorator(
             [function = std::move(option.function), memory = memory_](auto& upstream) mutable {
                 if constexpr (std::is_same_v<std::remove_cvref_t<decltype(upstream)>,
-                                             boost::beast::websocket::request_type>) {
+                                             ::webcpp::beast_backend::websocket::request_type>) {
                     if constexpr (std::is_invocable_v<Function&, request_type&>) {
                         request_type request(
                             std::piecewise_construct, std::tuple<>(),
@@ -79,22 +79,23 @@ public:
     /** Registers a control notification using the facade's portable frame category.
      @param callback Callback invoked with the frame category and payload, or empty to clear.
      */
-    void control_callback(std::function<void(frame_type, boost::beast::string_view)> callback) {
+    void control_callback(
+        std::function<void(frame_type, ::webcpp::beast_backend::string_view)> callback) {
         if (!callback) {
             base::control_callback({});
             return;
         }
         base::control_callback(
-            [callback = std::move(callback)](boost::beast::websocket::frame_type kind,
-                                             boost::beast::string_view payload) {
+            [callback = std::move(callback)](::webcpp::beast_backend::websocket::frame_type kind,
+                                             ::webcpp::beast_backend::string_view payload) {
                 switch (kind) {
-                    case boost::beast::websocket::frame_type::close:
+                    case ::webcpp::beast_backend::websocket::frame_type::close:
                         callback(frame_type::close, payload);
                         break;
-                    case boost::beast::websocket::frame_type::ping:
+                    case ::webcpp::beast_backend::websocket::frame_type::ping:
                         callback(frame_type::ping, payload);
                         break;
-                    case boost::beast::websocket::frame_type::pong:
+                    case ::webcpp::beast_backend::websocket::frame_type::pong:
                         callback(frame_type::pong, payload);
                         break;
                 }
@@ -137,8 +138,8 @@ namespace webcpp::asio {
  @param ec Receives any error from closing the socket.
  */
 template <class Protocol, class Executor>
-void teardown(boost::beast::role_type /*unused*/, basic_stream_socket<Protocol, Executor>& socket,
-              boost::system::error_code& ec) {
+void teardown(::webcpp::beast_backend::role_type /*unused*/,
+              basic_stream_socket<Protocol, Executor>& socket, boost::system::error_code& ec) {
     socket.close(ec);
 }
 
@@ -152,9 +153,9 @@ void teardown(boost::beast::role_type /*unused*/, basic_stream_socket<Protocol, 
  @return The result determined by the completion token.
  */
 template <class Protocol, class Executor, class Token>
-auto async_teardown(boost::beast::role_type role, basic_stream_socket<Protocol, Executor>& socket,
-                    Token&& token) {
-    return boost::asio::async_initiate<Token, void(boost::system::error_code)>(
+auto async_teardown(::webcpp::beast_backend::role_type role,
+                    basic_stream_socket<Protocol, Executor>& socket, Token&& token) {
+    return ::webcpp::asio_backend::async_initiate<Token, void(boost::system::error_code)>(
         [&socket, role](auto handler) {
             boost::system::error_code ec;
             teardown(role, socket, ec);

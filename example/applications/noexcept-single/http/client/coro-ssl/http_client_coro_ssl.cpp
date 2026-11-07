@@ -34,21 +34,21 @@
 
 #include "common/root_certificates.hpp"
 
-#include <boost/asio/spawn.hpp>
-#include <boost/asio/ssl.hpp>
 #include <boost/beast/version.hpp>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <string>
+#include <webcpp/asio/spawn.hpp>
+#include <webcpp/asio/ssl.hpp>
 #include <webcpp/beast/core.hpp>
 #include <webcpp/beast/http.hpp>
 
 namespace beast = webcpp::beast;    // from <webcpp/beast.hpp>
 namespace http = beast::http;       // from <webcpp/beast/http.hpp>
-namespace net = boost::asio;        // from <boost/asio.hpp>
-namespace ssl = boost::asio::ssl;   // from <boost/asio/ssl.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+namespace ssl = webcpp::asio::ssl;  // from <webcpp/asio/ssl.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 
@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
     ctx.set_verify_mode(ssl::verify_peer);
 
     // Launch the asynchronous operation
-    boost::asio::spawn(
+    webcpp::asio::spawn(
         ioc,
         std::bind(&do_session, std::string(host), std::string(port), std::string(target), version,
                   std::ref(ioc), std::ref(ctx), std::placeholders::_1),

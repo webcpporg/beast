@@ -24,18 +24,25 @@ const isMain = process.argv[1] === fileURLToPath(import.meta.url)
 const args = isMain ? process.argv.slice(2) : ["."]
 let program = 'browser_test'
 let expected = 'browser websocket and fetch: ok'
+let hosts = ['page']
 while (args[0]?.startsWith('--')) {
     const option = args.shift()
     if (option === '--program') program = args.shift()
     else if (option === '--expected') expected = args.shift()
+    else if (option === '--host') {
+        const host=args.shift()
+        assert.ok(['page','worker','both'].includes(host))
+        hosts=host==='both' ? ['page','worker'] : [host]
+    }
     else throw new Error(`unknown option ${option}`)
 }
 assert.equal(args.length, 1, 'usage: run.mjs [--program name] [--expected line] <artifact>')
 const mode = program
 const here = dirname(fileURLToPath(import.meta.url))
 const artifact = resolve(args[0])
-const manifest = join(dirname(artifact).replace(`${sep}exception-handling-off`, ''),
-    `${program}.variants.json`)
+const adjacentManifest = join(dirname(artifact), `${program}.variants.json`)
+const manifest = existsSync(adjacentManifest) ? adjacentManifest :
+    join(dirname(artifact).replace(`${sep}exception-handling-off`, ''), `${program}.variants.json`)
 let build = dirname(artifact)
 while (!manifest.startsWith(build + sep) && dirname(build) !== build) build = dirname(build)
 const manifestUrl = `/build/${relative(build, manifest).split(sep).join('/')}`
@@ -150,6 +157,8 @@ const startServer = async () => {
     await once(left.corsServer, 'listening')
     const corsPort = String(left.corsServer.address().port)
     const server = createServer((request, response) => {
+        response.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+        response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
         if (request.url === '/redirect') { response.writeHead(302, {Location: '/http'}).end(); return }
         if (['/', '/http', '/get', '/post', '/put', '/patch', '/delete'].includes(request.url)) {
             fixture(request, response)
@@ -386,7 +395,7 @@ const openPage = async (devtools, base, program, variant, url) => {
                 await delay(25)
             }
             const last = await snapshot()
-            throw new Error(`${program} (${variant}) did not complete ${line} within 20 s: ${JSON.stringify({lines: last.report?.lines, variant: last.report?.variant, timers: last.timers})}`)
+            throw new Error(`${program} (${variant}) did not complete ${line} within 20 s: ${JSON.stringify({report: {...last.report, frames: last.report?.frames?.length}, timers: last.timers})}`)
         },
         async close() {
             ws.close()
@@ -436,16 +445,19 @@ try {
         } finally { await control.close() }
     }
     for (const variant of ['jspi', 'asyncify']) {
-        const page = await openPage(devtools, base, program, variant)
+      for (const host of hosts) {
+        const page = await openPage(devtools, base, program, variant,
+            `${base}/page.html?manifest=${manifestUrl}&host=${host}`)
         try {
             const {report} = await page.waitFor(new RegExp('^' + expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'))
             assert.ok(report.lines.some(entry => entry.line === expected))
-            console.log(JSON.stringify({application: program, backend: variant, result: 'passed',
+            console.log(JSON.stringify({application: program, backend: variant, host, result: 'passed',
                 tls_fixture: {mode: 'isolated-profile-ca', untrusted_rejected: untrustedRejected,
                     wrong_name_rejected: wrongNameRejected, trust_and_hostname_verified:
                     untrustedRejected === true && wrongNameRejected === true},
                 output: report.lines.map(entry => entry.line)}))
         } finally { await page.close() }
+      }
     }
 } catch (error) {
     console.error(error)

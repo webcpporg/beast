@@ -29,8 +29,8 @@
 #ifndef BOOST_BEAST_EXAMPLE_COMMON_ROOT_CERTIFICATES_HPP
 #define BOOST_BEAST_EXAMPLE_COMMON_ROOT_CERTIFICATES_HPP
 
-#include <boost/asio/ssl.hpp>
 #include <string>
+#include <webcpp/asio/ssl.hpp>
 
 /*
     PLEASE READ
@@ -57,7 +57,7 @@
     tl;dr: root_certificates.hpp should not be used in production code
 */
 
-namespace ssl = boost::asio::ssl;  // from <boost/asio/ssl.hpp>
+namespace ssl = webcpp::asio::ssl;  // from <webcpp/asio/ssl.hpp>
 
 namespace detail {
 
@@ -3959,7 +3959,7 @@ inline void load_root_certificates(ssl::context& ctx, boost::system::error_code&
     static_cast<void>(
         // The ec output and the returned reference carry the same operation status.
         // NOLINTNEXTLINE(bugprone-unused-return-value)
-        ctx.add_certificate_authority(boost::asio::buffer(cert.data(), cert.size()), ec));
+        ctx.add_certificate_authority(webcpp::asio::buffer(cert.data(), cert.size()), ec));
     if (ec) {
         return;
     }

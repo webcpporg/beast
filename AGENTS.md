@@ -10,9 +10,9 @@ Read the superproject's [AGENTS.md](../../AGENTS.md) and
   byte-stream operations and browser message overloads. WASI host APIs live in
   `wasi/http.hpp` and depend on independent host bindings.
 - `/webcpp/beast//beast` supplies portable headers. `//sockets` selects native or
-  WASIp3 guest transport; `//tls` selects source-built OpenSSL explicitly.
-  Asio P2 core is now available, but the Beast guest-socket application corpus
-  remains a separate integration task; do not mark it passed from Asio tests.
+  WASIp2/P3 guest transport; `//tls` selects source-built OpenSSL explicitly.
+  P2 guest socket and TLS protocol tests pass; the full migrated application corpus
+  remains a separate validation gate. Do not infer corpus parity from core tests.
 - `/webcpp/beast//browser`, `//wasi-http` and `//wasi-streams` select independent
   environment adapters. Their runtime tests are separate from the socket tests.
   Keep source compatibility, application counterparts and unavailable facilities

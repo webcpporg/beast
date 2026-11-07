@@ -8,10 +8,10 @@
 // Upstream authors and their original notice follow.
 
 #include "urls_large_data.hpp"
-#include <boost/asio/use_awaitable.hpp>
 #include <boost/beast/version.hpp>
 #include <vector>
 #include <webcpp/asio.hpp>
+#include <webcpp/asio/use_awaitable.hpp>
 #include <webcpp/beast/http.hpp>
 #include <webcpp/beast/http/read.hpp>
 #include <webcpp/beast/http/write.hpp>

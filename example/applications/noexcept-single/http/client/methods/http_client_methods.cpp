@@ -33,17 +33,17 @@
 
 //[example_http_client_methods
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <webcpp/asio/connect.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;  // from <webcpp/beast.hpp>
 namespace http = beast::http;     // from <webcpp/beast/http.hpp>
-// from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+// from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 // perform a get request
 namespace {

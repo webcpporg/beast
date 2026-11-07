@@ -8,13 +8,18 @@
 // Supplied resources allocate directly, so every unbound stream allocation is observable.
 #include <emscripten/val.h>
 #include <array>
-#include <boost/asio/bind_allocator.hpp>
 #include <boost/throw_exception.hpp>
 #include <cstdio>
 #include <cstdlib>
 #include <memory_resource>
 #include <new>
-#include <webcpp/asio.hpp>
+#include <webcpp/asio/bind_allocator.hpp>
+#include <webcpp/asio/browser/bridge.hpp>
+#include <webcpp/asio/buffer.hpp>
+#include <webcpp/asio/disposition.hpp>
+#include <webcpp/asio/io_context.hpp>
+#include <webcpp/asio/ip/address.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
 #include <webcpp/beast/browser/http_byte_stream.hpp>
 #include <webcpp/beast/http.hpp>
 #include <webcpp/beast/ssl.hpp>
@@ -26,6 +31,8 @@ namespace {
 bool measuring = false;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::size_t escaped = 0;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+bool reject_allocations = false;
 
 void* storage(std::size_t size, std::size_t alignment) {
     alignment = std::max(alignment, alignof(std::max_align_t));
@@ -37,12 +44,53 @@ void* allocate(std::size_t size, std::size_t alignment) {
     if (measuring) {
         ++escaped;
     }
-    auto* pointer = storage(size, alignment);
+    auto* pointer = reject_allocations ? nullptr : storage(size, alignment);
     if (pointer == nullptr) {
         boost::throw_exception(std::bad_alloc());
     }
     return pointer;
 }
+
+#ifdef WEBCPP_HAS_EXCEPTIONS
+bool allocation_errors() {
+    namespace net = webcpp::asio;
+    constexpr std::string_view ipv6 = "2001:db8:1234:5678:9abc:def0:1234:5678";
+    boost::system::error_code error;
+    reject_allocations = true;
+    static_cast<void>(net::ip::make_address(ipv6, error));
+    reject_allocations = false;
+    if (error != net::error::no_memory) {
+        return false;
+    }
+    reject_allocations = true;
+    static_cast<void>(net::ip::make_address_v6(ipv6, error));
+    reject_allocations = false;
+    if (error != net::error::no_memory) {
+        return false;
+    }
+    reject_allocations = true;
+    static_cast<void>(net::ip::make_address_v4(
+        std::string_view("invalid-ipv4-string-longer-than-inline-storage"), error));
+    reject_allocations = false;
+    if (error != net::error::no_memory) {
+        return false;
+    }
+    using traits = net::disposition_traits<boost::system::error_code>;
+    reject_allocations = true;
+    const auto empty = traits::to_exception_ptr({});
+    const auto exception = traits::to_exception_ptr(net::error::operation_aborted);
+    reject_allocations = false;
+    if (empty || !exception) {
+        return false;
+    }
+    try {
+        std::rethrow_exception(exception);
+    } catch (const std::bad_alloc&) {
+        return true;
+    }
+    return false;
+}
+#endif
 
 struct resource final : std::pmr::memory_resource {
     std::size_t live = 0;
@@ -89,7 +137,7 @@ bool registration_lifetimes(resource& context_memory, resource& stream_memory) {
     {
         webcpp::asio::io_context context(
             std::allocator_arg, std::pmr::polymorphic_allocator<std::byte>(&context_memory));
-        auto& bridge = boost::asio::use_service<webcpp::asio::browser::bridge>(context);
+        auto& bridge = webcpp::asio::use_service<webcpp::asio::browser::bridge>(context);
         const auto initial = context_memory.total;
         for (std::size_t i = 0; i != registrations.size(); ++i) {
             registrations[i] = std::allocate_shared<registration>(stream_allocator);
@@ -126,7 +174,7 @@ bool http_allocations(webcpp::asio::io_context& io,
     {
         beast::tcp_stream transport(std::allocator_arg, stream_allocator, io);
         transport.connect(
-            {boost::asio::ip::make_address("2001:db8:1234:5678:9abc:def0:1234:5678"), 80}, ec);
+            {webcpp::asio::ip::make_address("2001:db8:1234:5678:9abc:def0:1234:5678"), 80}, ec);
         failed = failed || static_cast<bool>(ec);
         std::printf("allocation after numeric IPv6: outside=%zu\n", escaped);
     }
@@ -142,13 +190,13 @@ bool http_allocations(webcpp::asio::io_context& io,
         request.append(payload);
         request.append("\r\n\r\n");
         request.append(payload);
-        const auto count = adapter.write_some(boost::asio::buffer(request), ec);
+        const auto count = adapter.write_some(webcpp::asio::buffer(request), ec);
         failed = failed || static_cast<bool>(ec) || count != request.size();
         std::array<char, 2048> response{};
         bool received = false;
         adapter.async_read_some(
-            boost::asio::buffer(response),
-            boost::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
+            webcpp::asio::buffer(response),
+            webcpp::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
                 received = !error && std::string_view(response.data(), size).find(payload) !=
                                          std::string_view::npos;
                 failed = failed || static_cast<bool>(error);
@@ -171,7 +219,7 @@ bool http_allocations(webcpp::asio::io_context& io,
             std::piecewise_construct, std::make_tuple(storage), std::make_tuple(storage));
         beast::http::response<body, fields> response(
             std::piecewise_construct, std::make_tuple(storage), std::make_tuple(storage));
-        boost::beast::basic_flat_buffer<allocator> buffer(storage);
+        webcpp::beast_backend::basic_flat_buffer<allocator> buffer(storage);
         request.method(beast::http::verb::post);
         request.target("/echo");
         request.set(beast::http::field::host, authority);
@@ -185,7 +233,7 @@ bool http_allocations(webcpp::asio::io_context& io,
         bool received = false;
         beast::http::async_read(
             transport, buffer, response,
-            boost::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
+            webcpp::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
                 received = !error && size == 128 && response.body() == request.body();
                 if (!received) {
                     std::printf("direct HTTP read: error=%d category=%s bytes=%zu\n", error.value(),
@@ -255,6 +303,11 @@ void operator delete[](void* pointer, std::size_t /*unused*/,
 int main() {
     namespace net = webcpp::asio;
     namespace beast = webcpp::beast;
+#ifdef WEBCPP_HAS_EXCEPTIONS
+    if (!allocation_errors()) {
+        return 2;
+    }
+#endif
     resource context_memory;
     resource stream_memory;
     resource operation_memory;
@@ -300,7 +353,7 @@ int main() {
                         "allocator-subprotocol-with-a-long-name-to-defeat-small-string-storage");
         }));
         beast::get_lowest_layer(socket).connect(addresses, ec);
-        const auto on_close = boost::asio::bind_allocator(operation_allocator, [&](auto error) {
+        const auto on_close = webcpp::asio::bind_allocator(operation_allocator, [&](auto error) {
             done = !error;
             failed = failed || static_cast<bool>(error);
             if (error) {
@@ -309,7 +362,7 @@ int main() {
             }
         });
         const auto on_read =
-            boost::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
+            webcpp::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
                 failed = failed || static_cast<bool>(error) || size != 128;
                 if (error || size != 128) {
                     std::printf("WebSocket read: error=%d category=%s bytes=%zu\n", error.value(),
@@ -321,22 +374,23 @@ int main() {
                     on_close);
             });
         const auto on_write =
-            boost::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
+            webcpp::asio::bind_allocator(operation_allocator, [&](auto error, auto size) {
                 failed = failed || static_cast<bool>(error) || size != 128;
                 if (error || size != 128) {
                     std::printf("WebSocket write: error=%d category=%s bytes=%zu\n", error.value(),
                                 error.category().name(), size);
                 }
-                socket.async_read_some(boost::asio::buffer(incoming), on_read);
+                socket.async_read_some(webcpp::asio::buffer(incoming), on_read);
             });
-        const auto on_handshake = boost::asio::bind_allocator(operation_allocator, [&](auto error) {
-            failed = failed || static_cast<bool>(error);
-            if (error) {
-                std::printf("WebSocket handshake: error=%d category=%s\n", error.value(),
-                            error.category().name());
-            }
-            socket.async_write(boost::asio::buffer(incoming), on_write);
-        });
+        const auto on_handshake =
+            webcpp::asio::bind_allocator(operation_allocator, [&](auto error) {
+                failed = failed || static_cast<bool>(error);
+                if (error) {
+                    std::printf("WebSocket handshake: error=%d category=%s\n", error.value(),
+                                error.category().name());
+                }
+                socket.async_write(webcpp::asio::buffer(incoming), on_write);
+            });
         socket.async_handshake(
             authority, "/allocator-session-with-a-long-target-to-defeat-small-string-storage",
             on_handshake);

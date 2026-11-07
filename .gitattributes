@@ -1,2 +1,8 @@
 * text=auto
 *.sh text eol=lf
+
+# Unified patches must retain the prefix on empty context lines.
+*.patch whitespace=-blank-at-eol,-blank-at-eof
+
+# Preserve the pinned, mechanically generated implementation's whitespace.
+include/webcpp/beast/detail/backend/** -whitespace

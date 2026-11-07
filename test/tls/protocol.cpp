@@ -15,9 +15,9 @@
 #include <webcpp/asio/ip/tcp.hpp>
 #include <webcpp/asio/steady_timer.hpp>
 
-#include <boost/asio/post.hpp>
-#include <boost/asio/write.hpp>
 #include <boost/core/lightweight_test.hpp>
+#include <webcpp/asio/post.hpp>
+#include <webcpp/asio/write.hpp>
 
 #include <array>
 #include <chrono>
@@ -49,9 +49,9 @@ enum class scenario {
 ssl::context server_context(std::string_view certificate, std::string_view key, int version) {
     ssl::context result(ssl::context::tls_server);
     error_code ec;
-    BOOST_TEST(!result.use_certificate_chain(boost::asio::buffer(certificate), ec));
+    BOOST_TEST(!result.use_certificate_chain(webcpp::asio::buffer(certificate), ec));
     BOOST_TEST(!ec);
-    BOOST_TEST(!result.use_private_key(boost::asio::buffer(key), ssl::context::pem, ec));
+    BOOST_TEST(!result.use_private_key(webcpp::asio::buffer(key), ssl::context::pem, ec));
     BOOST_TEST(!ec);
     BOOST_TEST_EQ(SSL_CTX_set_min_proto_version(result.native_handle(), version), 1);
     BOOST_TEST_EQ(SSL_CTX_set_max_proto_version(result.native_handle(), version), 1);
@@ -64,7 +64,7 @@ ssl::context client_context(std::string_view authorities, bool trust) {
     BOOST_TEST(!result.set_verify_mode(ssl::verify_peer, ec));
     BOOST_TEST(!ec);
     if (trust) {
-        BOOST_TEST(!result.add_certificate_authority(boost::asio::buffer(authorities), ec));
+        BOOST_TEST(!result.add_certificate_authority(webcpp::asio::buffer(authorities), ec));
         BOOST_TEST(!ec);
     }
     return result;
@@ -83,7 +83,7 @@ class exchange {
     webcpp::asio::io_context context_;
     ssl::context server_context_;
     ssl::context client_context_;
-    tcp::acceptor listener_{context_, {boost::asio::ip::address_v4::loopback(), 0}};
+    tcp::acceptor listener_{context_, {webcpp::asio::ip::address_v4::loopback(), 0}};
     ws::stream<beast::ssl_stream<beast::tcp_stream>> server_;
     ws::stream<beast::ssl_stream<beast::tcp_stream>> client_;
     webcpp::asio::steady_timer deadline_{context_, 5s};
@@ -123,7 +123,7 @@ class exchange {
         }
         if (mode_ == scenario::handshake_timeout) {
             beast::get_lowest_layer(server_).socket().async_read_some(
-                boost::asio::buffer(hello_), [this](error_code read_error, std::size_t bytes) {
+                webcpp::asio::buffer(hello_), [this](error_code read_error, std::size_t bytes) {
                     if (!finished_) {
                         BOOST_TEST(!read_error);
                         BOOST_TEST_GT(bytes, 0U);
@@ -204,11 +204,11 @@ class exchange {
         BOOST_TEST_EQ(received_.body(), payload);
         BOOST_TEST_EQ(received_.target(), "/echo");
         if (mode_ == scenario::cancel_read) {
-            boost::asio::async_write(server_.next_layer(), boost::asio::buffer(partial),
-                                     [](error_code write_error, std::size_t count) {
-                                         BOOST_TEST(!write_error);
-                                         BOOST_TEST_GT(count, 0U);
-                                     });
+            webcpp::asio::async_write(server_.next_layer(), webcpp::asio::buffer(partial),
+                                      [](error_code write_error, std::size_t count) {
+                                          BOOST_TEST(!write_error);
+                                          BOOST_TEST_GT(count, 0U);
+                                      });
             return;
         }
         response_.body() = received_.body();
@@ -250,11 +250,11 @@ class exchange {
         BOOST_TEST(!parser_.is_done());
         http::async_read(client_.next_layer(), client_buffer_, parser_,
                          [this](error_code read_error, std::size_t) {
-                             BOOST_TEST(read_error == boost::asio::error::operation_aborted);
+                             BOOST_TEST(read_error == webcpp::asio::error::operation_aborted);
                              BOOST_TEST(!parser_.is_done());
                              finish();
                          });
-        boost::asio::post(context_, [this] { beast::get_lowest_layer(client_).cancel(); });
+        webcpp::asio::post(context_, [this] { beast::get_lowest_layer(client_).cancel(); });
     }
 
     void http_answered(error_code ec, [[maybe_unused]] std::size_t bytes) {
@@ -266,8 +266,8 @@ class exchange {
             // record unread can produce a reset instead of a truncated stream.
             // Cancelling before its write finishes can miss the pending read.
             server_.next_layer().async_read_some(
-                boost::asio::buffer(hello_), [this](error_code read_error, std::size_t bytes) {
-                    BOOST_TEST(read_error == boost::asio::error::eof);
+                webcpp::asio::buffer(hello_), [this](error_code read_error, std::size_t bytes) {
+                    BOOST_TEST(read_error == webcpp::asio::error::eof);
                     BOOST_TEST_EQ(bytes, 0U);
                     BOOST_TEST_NE(static_cast<unsigned>(
                                       SSL_get_shutdown(server_.next_layer().native_handle())) &
@@ -304,7 +304,7 @@ class exchange {
             BOOST_TEST(ec == ssl::error::stream_truncated);
             finish();
         } else if (mode_ == scenario::cancel_shutdown) {
-            BOOST_TEST(ec == boost::asio::error::operation_aborted);
+            BOOST_TEST(ec == webcpp::asio::error::operation_aborted);
             finish();
         } else {
             BOOST_TEST(!ec);
@@ -328,7 +328,7 @@ class exchange {
             return;
         }
         client_.binary(true);
-        client_.async_write(boost::asio::buffer(payload),
+        client_.async_write(webcpp::asio::buffer(payload),
                             beast::bind_front_handler(&exchange::ws_sent, this));
     }
 

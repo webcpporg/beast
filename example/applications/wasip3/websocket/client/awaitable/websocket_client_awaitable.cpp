@@ -31,9 +31,9 @@
 //
 //------------------------------------------------------------------------------
 
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/io_context.hpp>
+#include <webcpp/asio/awaitable.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/io_context.hpp>
 #include <webcpp/beast/core.hpp>
 
 #include <cstdlib>
@@ -45,7 +45,7 @@
 namespace beast = webcpp::beast;
 namespace http = beast::http;
 namespace websocket = beast::websocket;
-namespace net = boost::asio;
+namespace net = webcpp::asio;
 
 // Sends a WebSocket message and prints the response
 namespace {

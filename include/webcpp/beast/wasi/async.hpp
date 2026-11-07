@@ -10,14 +10,14 @@
 
 #include <webcpp/beast/wasi/http.hpp>
 #if defined(WEBCPP_WASI_HTTP_P2) || defined(WEBCPP_WASI_HTTP_P3)
-#include <boost/asio/associated_allocator.hpp>  // lint-world: handler allocation association
-#include <boost/asio/associated_cancellation_slot.hpp>  // lint-world: caller cancellation
-#include <boost/asio/associated_executor.hpp>  // lint-world: completion executor association
-#include <boost/asio/async_result.hpp>         // lint-world: reactor-free completion tokens
-#include <boost/asio/bind_allocator.hpp>       // lint-world: completion allocation association
-#include <boost/asio/execution.hpp>            // lint-world: completion executor properties
-#include <boost/asio/prefer.hpp>               // lint-world: associated outstanding work
-#include <boost/asio/require.hpp>              // lint-world: non-inline completion dispatch
+#include WEBCPP_ASIO_BACKEND_HEADER(associated_allocator.hpp)  // lint-world: handler allocation association
+#include WEBCPP_ASIO_BACKEND_HEADER(associated_cancellation_slot.hpp)  // lint-world: caller cancellation
+#include WEBCPP_ASIO_BACKEND_HEADER(associated_executor.hpp)  // lint-world: completion executor association
+#include WEBCPP_ASIO_BACKEND_HEADER(async_result.hpp)  // lint-world: reactor-free completion tokens
+#include WEBCPP_ASIO_BACKEND_HEADER(bind_allocator.hpp)  // lint-world: completion allocation association
+#include WEBCPP_ASIO_BACKEND_HEADER(execution.hpp)  // lint-world: completion executor properties
+#include WEBCPP_ASIO_BACKEND_HEADER(prefer.hpp)     // lint-world: associated outstanding work
+#include WEBCPP_ASIO_BACKEND_HEADER(require.hpp)    // lint-world: non-inline completion dispatch
 #include <memory>
 #include <optional>
 #include <utility>
@@ -61,7 +61,8 @@ struct host_work {
         if constexpr (requires { value.on_work_started(); }) {
             return value;
         } else {
-            return boost::asio::prefer(value, boost::asio::execution::outstanding_work_t::tracked);
+            return ::webcpp::asio_backend::prefer(
+                value, ::webcpp::asio_backend::execution::outstanding_work_t::tracked);
         }
     }
 
@@ -276,8 +277,10 @@ void host_post(const Executor& executor, const Allocator& allocator, Function&& 
     if constexpr (requires { executor.post(std::forward<Function>(function), allocator); }) {
         executor.post(std::forward<Function>(function), allocator);
     } else {
-        boost::asio::require(executor, boost::asio::execution::blocking_t::never)
-            .execute(boost::asio::bind_allocator(allocator, std::forward<Function>(function)));
+        ::webcpp::asio_backend::require(executor,
+                                        ::webcpp::asio_backend::execution::blocking_t::never)
+            .execute(::webcpp::asio_backend::bind_allocator(allocator,
+                                                            std::forward<Function>(function)));
     }
 }
 
@@ -285,10 +288,12 @@ void host_post(const Executor& executor, const Allocator& allocator, Function&& 
 template <class State, class Handler>
 struct host_async_operation final : host_operation {
     /** Allocator rebound to this operation node. */
-    using storage_allocator_type = std::allocator_traits<
-        boost::asio::associated_allocator_t<Handler>>::template rebind_alloc<host_async_operation>;
+    using storage_allocator_type =
+        std::allocator_traits<::webcpp::asio_backend::associated_allocator_t<Handler>>::
+            template rebind_alloc<host_async_operation>;
     /** Handler-associated executor with the host executor fallback. */
-    using executor_type = boost::asio::associated_executor_t<Handler, http_context::executor_type>;
+    using executor_type =
+        ::webcpp::asio_backend::associated_executor_t<Handler, http_context::executor_type>;
     /** Associated allocator retained for matching deallocation. */
     storage_allocator_type allocator;
     /** Completion handler retained until the operation finishes. */
@@ -298,7 +303,7 @@ struct host_async_operation final : host_operation {
     /** Outstanding associated executor work retained through completion posting. */
     host_work<executor_type> work;
     /** Associated cancellation slot disconnected before state release. */
-    boost::asio::associated_cancellation_slot_t<Handler> slot;
+    ::webcpp::asio_backend::associated_cancellation_slot_t<Handler> slot;
     /** Cancellation observed on the component task. */
     bool cancelled = false;
     /** Owned bounded-step transfer state. */
@@ -310,13 +315,14 @@ struct host_async_operation final : host_operation {
                          Args&&... args)
         : allocator(alloc),
           handler(std::move(value)),
-          executor(boost::asio::get_associated_executor(handler, context.get_executor())),
+          executor(
+              ::webcpp::asio_backend::get_associated_executor(handler, context.get_executor())),
           work(executor),
-          slot(boost::asio::get_associated_cancellation_slot(handler)),
+          slot(::webcpp::asio_backend::get_associated_cancellation_slot(handler)),
           state(std::forward<Args>(args)...) {
         if (slot.is_connected()) {
-            slot.assign([this](boost::asio::cancellation_type type) {
-                if (type != boost::asio::cancellation_type::none) {
+            slot.assign([this](::webcpp::asio_backend::cancellation_type type) {
+                if (type != ::webcpp::asio_backend::cancellation_type::none) {
                     cancelled = true;
                 }
             });
@@ -340,7 +346,7 @@ struct host_async_operation final : host_operation {
             slot.clear();
         }
         auto const count = state.total;
-        auto const alloc = boost::asio::get_associated_allocator(handler);
+        auto const alloc = ::webcpp::asio_backend::get_associated_allocator(handler);
         host_post(executor, alloc,
                   [value = std::move(handler), error, count]() mutable { value(error, count); });
         return true;
@@ -359,7 +365,7 @@ template <class State, class Handler, class... Args>
 void start_host_operation(http_context& context, Handler&& handler, Args&&... args) {
     using operation = host_async_operation<State, std::decay_t<Handler>>;
     typename operation::storage_allocator_type allocator(
-        boost::asio::get_associated_allocator(handler));
+        ::webcpp::asio_backend::get_associated_allocator(handler));
     context.enqueue(allocate_host_state<operation>(allocator, allocator,
                                                    std::forward<Handler>(handler), context,
                                                    std::forward<Args>(args)...));
@@ -413,7 +419,7 @@ struct host_read_message {
             if (error) {
                 return true;
             }
-            total += reader->put(boost::asio::buffer(buffer.data(), count), error);
+            total += reader->put(::webcpp::asio_backend::buffer(buffer.data(), count), error);
             return static_cast<bool>(error);
         }
         if (!source->finish(
@@ -508,7 +514,7 @@ struct host_write_message {
             return false;
         }
         std::size_t skipped = 0;
-        for (auto const buffer : boost::beast::buffers_range_ref(chunk->first)) {
+        for (auto const buffer : ::webcpp::beast_backend::buffers_range_ref(chunk->first)) {
             if (skipped + buffer.size() <= offset) {
                 skipped += buffer.size();
                 continue;
@@ -762,8 +768,8 @@ auto async_receive(http_context& context, detail::host::incoming_request& source
                    http::request<Body, Fields>& request, CompletionToken&& token,
                    const transfer_options& options = transfer_options(),
                    Trailers* trailers = nullptr) {
-    return boost::asio::async_initiate<CompletionToken,
-                                       void(boost::system::error_code, std::size_t)>(
+    return ::webcpp::asio_backend::async_initiate<CompletionToken,
+                                                  void(boost::system::error_code, std::size_t)>(
         [&context, &source, &request, options, trailers](auto&& handler) {
             detail::start_host_operation<detail::host_receive_state<Body, Fields, Trailers>>(
                 context, std::forward<decltype(handler)>(handler), source, request, options,
@@ -789,8 +795,8 @@ auto async_send(http_context& context, detail::host::response_out output,
                 http::response<Body, Fields>& response, CompletionToken&& token,
                 const transfer_options& options = transfer_options(),
                 const Trailers* trailers = nullptr) {
-    return boost::asio::async_initiate<CompletionToken,
-                                       void(boost::system::error_code, std::size_t)>(
+    return ::webcpp::asio_backend::async_initiate<CompletionToken,
+                                                  void(boost::system::error_code, std::size_t)>(
         [&context, output, &response, options, trailers](auto&& handler) {
             detail::start_host_operation<detail::host_send_state<Body, Fields, Trailers>>(
                 context, std::forward<decltype(handler)>(handler), output, response, options,
@@ -823,8 +829,8 @@ auto async_perform(http_context& context, client& connection,
                    const transfer_options& options = transfer_options(),
                    Trailers* response_trailers = nullptr,
                    const Trailers* request_trailers = nullptr) {
-    return boost::asio::async_initiate<CompletionToken,
-                                       void(boost::system::error_code, std::size_t)>(
+    return ::webcpp::asio_backend::async_initiate<CompletionToken,
+                                                  void(boost::system::error_code, std::size_t)>(
         [&context, &connection, &request, &response, options, response_trailers,
          request_trailers](auto&& handler) {
             detail::start_host_operation<detail::host_client_state<

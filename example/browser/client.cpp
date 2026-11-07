@@ -14,9 +14,9 @@
 #include <webcpp/beast/websocket.hpp>
 
 #include <emscripten/val.h>
-#include <boost/asio/buffer.hpp>
 #include <cstdio>
 #include <string>
+#include <webcpp/asio/buffer.hpp>
 
 int main() {
     namespace beast = webcpp::beast;
@@ -46,7 +46,7 @@ int main() {
         return 1;
     }
     socket.text(true);
-    socket.write(boost::asio::buffer("hello", 5), ec);
+    socket.write(net::buffer("hello", 5), ec);
     if (ec) {
         return 1;
     }

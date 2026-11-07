@@ -31,8 +31,6 @@
 //------------------------------------------------------------------------------
 
 #include <algorithm>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/spawn.hpp>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -40,13 +38,15 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <webcpp/asio/detached.hpp>
+#include <webcpp/asio/spawn.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;       // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 
@@ -173,7 +173,7 @@ void do_listen(webcpp::asio::io_context& ioc, tcp::endpoint endpoint,
         if (ec) {
             fail(ec, "accept");
         } else {
-            boost::asio::spawn(
+            webcpp::asio::spawn(
                 acceptor.get_executor(),
                 // The concrete bound signature selects the upstream Asio spawn/completion overload.
                 // NOLINTNEXTLINE(modernize-avoid-bind)
@@ -181,7 +181,7 @@ void do_listen(webcpp::asio::io_context& ioc, tcp::endpoint endpoint,
                           std::placeholders::_1),
                 // we ignore the result of the session,
                 // most errors are handled with error_code
-                boost::asio::detached);
+                webcpp::asio::detached);
         }
     }
 }
@@ -206,7 +206,7 @@ int main(int argc, char** argv) {
     webcpp::asio::io_context ioc(threads);
 
     // Spawn a listening port
-    boost::asio::spawn(
+    webcpp::asio::spawn(
         ioc,
         // The concrete bound signature selects the upstream Asio spawn/completion overload.
         // NOLINTNEXTLINE(modernize-avoid-bind)

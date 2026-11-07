@@ -32,14 +32,14 @@
 //------------------------------------------------------------------------------
 
 #include <algorithm>
-#include <boost/asio/coroutine.hpp>
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/strand.hpp>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <webcpp/asio/coroutine.hpp>
+#include <webcpp/asio/dispatch.hpp>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast/core.hpp>
 
 #include <vector>
@@ -47,8 +47,8 @@
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;       // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 
@@ -61,7 +61,7 @@ void fail(beast::error_code ec, char const* what) {
 // Echoes back all received WebSocket messages
 // Upstream combines coroutine state and shared lifetime as independent mixins.
 // NOLINTNEXTLINE(misc-multiple-inheritance)
-class session : public boost::asio::coroutine, public std::enable_shared_from_this<session> {
+class session : public webcpp::asio::coroutine, public std::enable_shared_from_this<session> {
     websocket::stream<beast::tcp_stream> ws_;
     beast::flat_buffer buffer_;
 
@@ -80,7 +80,7 @@ public:
             beast::bind_front_handler(&session::loop, shared_from_this(), beast::error_code{}, 0));
     }
 
-#include <boost/asio/yield.hpp>
+#include <webcpp/asio/yield.hpp>
 
     // The retained stackless coroutine expands each yield into nested resume branches.
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -147,7 +147,7 @@ public:
         }
     }
 
-#include <boost/asio/unyield.hpp>
+#include <webcpp/asio/unyield.hpp>
 };
 
 //------------------------------------------------------------------------------
@@ -155,7 +155,7 @@ public:
 // Accepts incoming connections and launches the sessions
 // Upstream combines coroutine state and shared lifetime as independent mixins.
 // NOLINTNEXTLINE(misc-multiple-inheritance)
-class listener : public boost::asio::coroutine, public std::enable_shared_from_this<listener> {
+class listener : public webcpp::asio::coroutine, public std::enable_shared_from_this<listener> {
     webcpp::asio::io_context& ioc_;
     tcp::acceptor acceptor_;
     tcp::socket socket_;
@@ -210,7 +210,7 @@ public:
 private:
 // Asio yield/unyield headers intentionally toggle macros and have no include guards.
 // NOLINTNEXTLINE(readability-duplicate-include)
-#include <boost/asio/yield.hpp>
+#include <webcpp/asio/yield.hpp>
 
     // The retained stackless coroutine expands each yield into nested resume branches.
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -236,7 +236,7 @@ private:
 
 // Asio yield/unyield headers intentionally toggle macros and have no include guards.
 // NOLINTNEXTLINE(readability-duplicate-include)
-#include <boost/asio/unyield.hpp>
+#include <webcpp/asio/unyield.hpp>
 };
 
 //------------------------------------------------------------------------------

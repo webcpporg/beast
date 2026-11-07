@@ -14,8 +14,8 @@
 #include <webcpp/asio/ip/tcp.hpp>
 #include <webcpp/asio/steady_timer.hpp>
 
-#include <boost/asio/buffer.hpp>
 #include <boost/core/lightweight_test.hpp>
+#include <webcpp/asio/buffer.hpp>
 
 #include <chrono>
 #include <memory>
@@ -29,11 +29,15 @@ using tcp = webcpp::asio::ip::tcp;
 using boost::system::error_code;
 using namespace std::chrono_literals;
 
-static_assert(std::is_same_v<beast::tcp_stream, boost::beast::tcp_stream>);
-static_assert(std::is_same_v<websocket::frame_type, boost::beast::websocket::frame_type>);
-static_assert(std::is_same_v<websocket::ping_data, boost::beast::websocket::ping_data>);
-static_assert(std::is_base_of_v<boost::beast::websocket::stream<beast::tcp_stream>,
+static_assert(std::is_same_v<beast::tcp_stream, webcpp::beast_backend::tcp_stream>);
+static_assert(std::is_same_v<websocket::frame_type, webcpp::beast_backend::websocket::frame_type>);
+static_assert(std::is_same_v<websocket::ping_data, webcpp::beast_backend::websocket::ping_data>);
+static_assert(std::is_base_of_v<webcpp::beast_backend::websocket::stream<beast::tcp_stream>,
                                 websocket::stream<beast::tcp_stream>>);
+#ifdef WEBCPP_TARGET_NATIVE
+static_assert(std::is_same_v<websocket::stream<beast::tcp_stream>,
+                             webcpp::beast_backend::websocket::stream<beast::tcp_stream>>);
+#endif
 
 namespace {
 
@@ -53,15 +57,17 @@ void test_constructors() {
     websocket::stream<default_socket> original;
     const websocket::stream<default_socket> moved(std::move(original));
     BOOST_TEST(!moved.is_open());
+#ifndef WEBCPP_TARGET_NATIVE
     const std::allocator<std::byte> allocator;
     const websocket::stream<default_socket> allocated(std::allocator_arg, allocator);
     BOOST_TEST(!allocated.is_open());
+#endif
 
     webcpp::asio::io_context context;
     using precise_socket =
-        boost::asio::basic_stream_socket<tcp, boost::asio::io_context::executor_type>;
+        webcpp::asio::basic_stream_socket<tcp, webcpp::asio::io_context::executor_type>;
     using precise_stream = websocket::stream<precise_socket>;
-    using rebound = precise_stream::rebind_executor<boost::asio::any_io_executor>::other;
+    using rebound = precise_stream::rebind_executor<webcpp::asio::any_io_executor>::other;
     static_assert(std::is_same_v<rebound, websocket::stream<tcp::socket>>);
     precise_stream precise(context);
     const rebound converted(std::move(precise));
@@ -69,16 +75,22 @@ void test_constructors() {
 
     using no_deflate_stream = websocket::stream<precise_socket, false>;
     using no_deflate_rebound =
-        no_deflate_stream::rebind_executor<boost::asio::any_io_executor>::other;
+        no_deflate_stream::rebind_executor<webcpp::asio::any_io_executor>::other;
     static_assert(std::is_same_v<no_deflate_rebound, websocket::stream<tcp::socket, false>>);
     no_deflate_stream no_deflate(context);
+#ifdef WEBCPP_TARGET_NATIVE
+    // Boost 1.92's converting stream constructor does not accept this false-deflate
+    // specialization. Move the unopened socket explicitly, as a Boost consumer does.
+    const no_deflate_rebound converted_no_deflate(std::move(no_deflate.next_layer()));
+#else
     const no_deflate_rebound converted_no_deflate(std::move(no_deflate));
+#endif
     BOOST_TEST(!converted_no_deflate.is_open());
 }
 
 class http_exchange {
     webcpp::asio::io_context context_;
-    tcp::acceptor listener_{context_, {boost::asio::ip::address_v4::loopback(), 0}};
+    tcp::acceptor listener_{context_, {webcpp::asio::ip::address_v4::loopback(), 0}};
     beast::tcp_stream client_{context_};
     beast::tcp_stream server_{context_};
     beast::flat_buffer input_;
@@ -163,10 +175,9 @@ public:
 
 class websocket_exchange {
     webcpp::asio::io_context context_;
-    tcp::acceptor listener_{context_, {boost::asio::ip::address_v4::loopback(), 0}};
+    tcp::acceptor listener_{context_, {webcpp::asio::ip::address_v4::loopback(), 0}};
     websocket::stream<beast::tcp_stream> server_{context_};
-    websocket::stream<beast::tcp_stream> client_{std::allocator_arg, std::allocator<std::byte>{},
-                                                 context_};
+    websocket::stream<beast::tcp_stream> client_{context_};
     beast::flat_buffer server_data_;
     beast::flat_buffer client_data_;
     const std::string payload{"binary\0message", 14};
@@ -237,7 +248,7 @@ class websocket_exchange {
             return;
         }
         client_.binary(true);
-        client_.async_write(boost::asio::buffer(payload),
+        client_.async_write(webcpp::asio::buffer(payload),
                             beast::bind_front_handler(&websocket_exchange::client_written, this));
     }
 
@@ -293,7 +304,7 @@ void test_websocket() {
 
 void test_timeout() {
     webcpp::asio::io_context context;
-    tcp::acceptor listener(context, {boost::asio::ip::address_v4::loopback(), 0});
+    tcp::acceptor listener(context, {webcpp::asio::ip::address_v4::loopback(), 0});
     tcp::socket peer(context);
     beast::tcp_stream client(context);
     beast::flat_buffer buffer;
