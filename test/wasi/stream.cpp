@@ -28,7 +28,7 @@ int verify_signal_state(bool pending_signal) {
     }
     webcpp::beast::wasi::stdio_stream stream;
     boost::system::error_code error;
-    stream.write_some(boost::asio::buffer("abc", 3), error);
+    stream.write_some(webcpp::asio::buffer("abc", 3), error);
     static_cast<void>(::pthread_sigmask(SIG_BLOCK, nullptr, &current));
     static_cast<void>(::sigpending(&pending));
     const bool preserved = sigismember(&current, SIGPIPE) == 1 &&
@@ -71,7 +71,7 @@ int main(int argc, const char* const* argv) {
         std::array<char, 4096> bytes{};
         boost::system::error_code error;
         for (;;) {
-            stream.write_some(boost::asio::buffer(bytes), error);
+            stream.write_some(webcpp::asio::buffer(bytes), error);
             if (error) {
                 break;
             }

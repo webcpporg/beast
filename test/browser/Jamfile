@@ -13,7 +13,7 @@ webcpp.original node ;
 webcpp.drive browser_contracts : .//browser_test
   : <dependency>browser_test.variants.json <webcpp-drive-timeout>120
   : run.mjs ;
-webcpp.lane browser : browser_contracts browser_allocations browser_lifecycle browser_environment : emscripten ;
+webcpp.lane browser : browser_contracts browser_allocations browser_chunk_allocations browser_lifecycle browser_environment : emscripten ;
 
 # A facade may not cross a differently configured translation unit.
 webcpp.run config_boundary : config_provider.cpp config_consumer.cpp
@@ -25,6 +25,11 @@ webcpp.variants allocation_test : allocation_test.cpp : <library>/webcpp/beast//
 webcpp.drive browser_allocations : .//allocation_test
   : <dependency>allocation_test.variants.json <webcpp-drive-timeout>120
   : run.mjs : --program allocation_test --expected "browser allocator: ok" ;
+
+webcpp.variants chunk_allocation_test : chunk_allocation_test.cpp : <library>/webcpp/beast//browser ;
+webcpp.drive browser_chunk_allocations : .//chunk_allocation_test
+  : <dependency>chunk_allocation_test.variants.json <webcpp-drive-timeout>120
+  : run.mjs : --program chunk_allocation_test --expected "browser chunk allocation: ok" ;
 
 webcpp.drive node_contracts : .//browser_test
   : <dependency>browser_test.variants.json <webcpp-drive-timeout>120

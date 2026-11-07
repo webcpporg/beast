@@ -6,8 +6,8 @@
 
 #include <webcpp/beast.hpp>
 
-#include <boost/asio/buffer.hpp>
 #include <boost/core/lightweight_test.hpp>
+#include <webcpp/asio/buffer.hpp>
 
 #include <string>
 #include <type_traits>
@@ -15,9 +15,10 @@
 namespace beast = webcpp::beast;
 namespace http = beast::http;
 
-static_assert(std::is_same_v<beast::flat_buffer, boost::beast::flat_buffer>);
-static_assert(std::is_same_v<http::request<http::string_body>,
-                             boost::beast::http::request<boost::beast::http::string_body>>);
+static_assert(std::is_same_v<beast::flat_buffer, webcpp::beast_backend::flat_buffer>);
+static_assert(
+    std::is_same_v<http::request<http::string_body>,
+                   webcpp::beast_backend::http::request<webcpp::beast_backend::http::string_body>>);
 
 int main() {
     const std::string payload("hello\0wasm", 10);
@@ -31,7 +32,7 @@ int main() {
     http::request_parser<http::string_body> parser;
     parser.eager(true);
     boost::system::error_code error;
-    const auto consumed = parser.put(boost::asio::buffer(wire), error);
+    const auto consumed = parser.put(webcpp::asio::buffer(wire), error);
     BOOST_TEST(!error);
     BOOST_TEST_EQ(consumed, wire.size());
     BOOST_TEST(parser.is_done());
@@ -41,12 +42,12 @@ int main() {
     http::request_parser<http::string_body> limited;
     limited.body_limit(4);
     limited.eager(true);
-    limited.put(boost::asio::buffer(wire), error);
+    limited.put(webcpp::asio::buffer(wire), error);
     BOOST_TEST(error == http::error::body_limit);
 
     http::request_parser<http::string_body> malformed;
     const std::string invalid = "GET / HTTP/1.1\r\nBad Header: value\r\n\r\n";
-    malformed.put(boost::asio::buffer(invalid), error);
+    malformed.put(webcpp::asio::buffer(invalid), error);
     BOOST_TEST(error == http::error::bad_field);
     return boost::report_errors();
 }

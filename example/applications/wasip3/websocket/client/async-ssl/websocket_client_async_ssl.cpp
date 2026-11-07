@@ -34,21 +34,21 @@
 
 #include "common/root_certificates.hpp"
 
-#include <boost/asio/ssl.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/beast/websocket/ssl.hpp>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <webcpp/asio/ssl.hpp>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast/core.hpp>
+#include <webcpp/beast/websocket/ssl.hpp>
 
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-namespace ssl = boost::asio::ssl;        // from <boost/asio/ssl.hpp>
-using tcp = webcpp::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+namespace ssl = webcpp::asio::ssl;       // from <webcpp/asio/ssl.hpp>
+using tcp = webcpp::asio::ip::tcp;       // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 

@@ -10,10 +10,10 @@
 #include <webcpp/beast/config.hpp>
 
 #include <array>
-#include <boost/asio/compose.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/beast/core/flat_buffer.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/http/parser.hpp>  // lint-world: portable protocol data and explicit stream algorithms
-#include <boost/beast/http/serializer.hpp>  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_ASIO_BACKEND_HEADER(compose.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_BEAST_BACKEND_HEADER(core/flat_buffer.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(http/parser.hpp)  // lint-world: portable protocol data and explicit stream algorithms
+#include WEBCPP_BEAST_BACKEND_HEADER(http/serializer.hpp)  // lint-world: portable protocol data and explicit stream algorithms
 #include <charconv>
 #include <optional>
 #include <tuple>
@@ -38,20 +38,21 @@ namespace browser {
 template <detail::browser::host_stream NextLayer>
 class http_byte_stream {
     using allocator_type = std::pmr::polymorphic_allocator<char>;
-    using body_type =
-        boost::beast::http::basic_string_body<char, std::char_traits<char>, allocator_type>;
-    using fields_type = boost::beast::http::basic_fields<allocator_type>;
+    using body_type = ::webcpp::beast_backend::http::basic_string_body<char, std::char_traits<char>,
+                                                                       allocator_type>;
+    using fields_type = ::webcpp::beast_backend::http::basic_fields<allocator_type>;
     NextLayer& next_;
-    std::optional<boost::beast::http::request_parser<body_type, allocator_type>> request_;
-    boost::beast::http::response<body_type, fields_type> response_;
-    boost::beast::basic_flat_buffer<allocator_type> unused_;
+    std::optional<::webcpp::beast_backend::http::request_parser<body_type, allocator_type>>
+        request_;
+    ::webcpp::beast_backend::http::response<body_type, fields_type> response_;
+    ::webcpp::beast_backend::basic_flat_buffer<allocator_type> unused_;
     std::pmr::string wire_;
     std::size_t offset_ = 0;
     bool head_ = false;
     bool response_pending_ = false;
 
     void frame(boost::system::error_code& ec) {
-        namespace http = boost::beast::http;
+        namespace http = ::webcpp::beast_backend::http;
         wire_.clear();
         offset_ = 0;
         const bool bodyless =
@@ -69,7 +70,7 @@ class http_byte_stream {
         while (!serializer.is_header_done()) {
             std::size_t consumed = 0;
             serializer.next(ec, [&](auto&, const auto& buffers) {
-                for (const auto buffer : boost::beast::buffers_range_ref(buffers)) {
+                for (const auto buffer : ::webcpp::beast_backend::buffers_range_ref(buffers)) {
                     wire_.append(static_cast<const char*>(buffer.data()), buffer.size());
                     consumed += buffer.size();
                 }
@@ -98,8 +99,9 @@ class http_byte_stream {
 
     template <class Buffers>
     std::size_t copy(const Buffers& buffers) {
-        auto const count = boost::asio::buffer_copy(
-            buffers, boost::asio::buffer(wire_.data() + offset_, wire_.size() - offset_));
+        auto const count = ::webcpp::asio_backend::buffer_copy(
+            buffers,
+            ::webcpp::asio_backend::buffer(wire_.data() + offset_, wire_.size() - offset_));
         offset_ += count;
         return count;
     }
@@ -147,10 +149,10 @@ public:
      */
     template <class Buffers>
     std::size_t write_some(const Buffers& buffers, boost::system::error_code& ec) {
-        namespace http = boost::beast::http;
+        namespace http = ::webcpp::beast_backend::http;
         ec.clear();
         if (response_pending_ || offset_ < wire_.size()) {
-            ec = boost::asio::error::already_started;
+            ec = ::webcpp::asio_backend::error::already_started;
             return 0;
         }
         if (!request_) {
@@ -205,7 +207,8 @@ public:
      */
     template <class Buffers, class Token>
     auto async_write_some(const Buffers& buffers, Token&& token) {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code, std::size_t)>(
+        return ::webcpp::asio_backend::async_initiate<Token,
+                                                      void(boost::system::error_code, std::size_t)>(
             [this, buffers](auto handler) {
                 boost::system::error_code ec;
                 const auto n = write_some(buffers, ec);
@@ -226,7 +229,7 @@ public:
         ec.clear();
         if (offset_ == wire_.size()) {
             if (!response_pending_) {
-                ec = boost::asio::error::eof;
+                ec = ::webcpp::asio_backend::error::eof;
                 return 0;
             }
             webcpp::beast::http::read(next_, unused_, response_, ec);
@@ -268,7 +271,8 @@ public:
      */
     template <class Buffers, class Token>
     auto async_read_some(const Buffers& buffers, Token&& token) {
-        return boost::asio::async_compose<Token, void(boost::system::error_code, std::size_t)>(
+        return ::webcpp::asio_backend::async_compose<Token,
+                                                     void(boost::system::error_code, std::size_t)>(
             [this, buffers, started = false, posted = false](
                 auto& self, boost::system::error_code ec = {}, std::size_t = 0) mutable {
                 if (!posted) {
@@ -293,7 +297,7 @@ public:
                     return;
                 }
                 if (!response_pending_) {
-                    self.complete(boost::asio::error::eof, 0);
+                    self.complete(::webcpp::asio_backend::error::eof, 0);
                     return;
                 }
                 started = true;

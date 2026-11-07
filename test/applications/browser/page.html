@@ -13,13 +13,36 @@ The browser lane loads a manifest and records program output and animation callb
 <script type="module">
 import {load} from '/loader/webcpp-asio-loader.mjs'
 const report = (window.report = {lines: [], stderr: [], variant: null, error: null, frames: []})
+report.network = []
+const fetchOriginal = window.fetch.bind(window)
+window.fetch = async (...args) => {
+    const record = {url: String(args[0]), status: null, error: null}
+    report.network.push(record)
+    try {
+        const response = await fetchOriginal(...args)
+        record.status = response.status
+        return response
+    } catch (error) {
+        record.error = String(error)
+        throw error
+    }
+}
 const tick = () => {
     report.frames.push(performance.now())
     requestAnimationFrame(tick)
 }
 requestAnimationFrame(tick)
 try {
-    const manifest = new URLSearchParams(location.search).get('manifest')
+    const query = new URLSearchParams(location.search)
+    const manifest = query.get('manifest')
+    if (query.get('host') === 'worker') {
+        const params = new URLSearchParams({manifest:new URL(manifest,location.href).href,
+            securePort:globalThis.beastSecurePort,
+            variant:typeof WebAssembly.Suspending === 'function' ? 'jspi' : 'asyncify'})
+        const worker = new Worker('/network-worker.mjs?'+params,{type:'module'})
+        worker.onmessage = event => Object.assign(report,event.data)
+        worker.onerror = event => {report.error=event.message}
+    } else {
     const print = line => report.lines.push({line, at: performance.now()})
     // Identify the imported artifact before its factory waits on an indefinitely suspended main.
     const response = await fetch(manifest)
@@ -33,6 +56,7 @@ try {
     }
     const loaded = await load(manifest, {module: {print, printErr: line => report.stderr.push(line)}, fetch: async () => response, importModule})
     if (loaded.variant !== report.variant) throw new Error('loaded variant differs from its artifact')
+    }
 } catch (error) {
     report.error = String(error)
 }

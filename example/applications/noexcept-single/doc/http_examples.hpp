@@ -71,7 +71,7 @@ void send_expect_100_continue(SyncStream& stream, DynamicBuffer& buffer,
                               request<Body, basic_fields<Allocator>>& req, error_code& ec) {
     static_assert(is_sync_stream<SyncStream>::value, "SyncStream requirements not met");
 
-    static_assert(boost::asio::is_dynamic_buffer<DynamicBuffer>::value,
+    static_assert(webcpp::asio::is_dynamic_buffer<DynamicBuffer>::value,
                   "DynamicBuffer requirements not met");
 
     // Insert or replace the Expect field
@@ -123,7 +123,7 @@ template <class SyncStream, class DynamicBuffer>
 void receive_expect_100_continue(SyncStream& stream, DynamicBuffer& buffer, error_code& ec) {
     static_assert(is_sync_stream<SyncStream>::value, "SyncStream requirements not met");
 
-    static_assert(boost::asio::is_dynamic_buffer<DynamicBuffer>::value,
+    static_assert(webcpp::asio::is_dynamic_buffer<DynamicBuffer>::value,
                   "DynamicBuffer requirements not met");
 
     // Declare a parser for a request with a string body
@@ -212,8 +212,8 @@ void send_cgi_response(SyncReadStream& input, SyncWriteStream& output, error_cod
     do {
         // Read a buffer from the child process
         char buffer[2048];
-        auto bytes_transferred = input.read_some(boost::asio::buffer(buffer, sizeof(buffer)), ec);
-        if (ec == boost::asio::error::eof) {
+        auto bytes_transferred = input.read_some(webcpp::asio::buffer(buffer, sizeof(buffer)), ec);
+        if (ec == webcpp::asio::error::eof) {
             ec = {};
 
             // `nullptr` indicates there is no buffer
@@ -263,7 +263,7 @@ void send_cgi_response(SyncReadStream& input, SyncWriteStream& output, error_cod
 template <class SyncStream, class DynamicBuffer>
 void do_server_head(SyncStream& stream, DynamicBuffer& buffer, error_code& ec) {
     static_assert(is_sync_stream<SyncStream>::value, "SyncStream requirements not met");
-    static_assert(boost::asio::is_dynamic_buffer<DynamicBuffer>::value,
+    static_assert(webcpp::asio::is_dynamic_buffer<DynamicBuffer>::value,
                   "DynamicBuffer requirements not met");
 
     // We deliver this payload for all GET requests
@@ -343,7 +343,7 @@ response<empty_body> do_head_request(SyncStream& stream, DynamicBuffer& buffer, 
                                      error_code& ec) {
     // Do some type checking to be a good citizen
     static_assert(is_sync_stream<SyncStream>::value, "SyncStream requirements not met");
-    static_assert(boost::asio::is_dynamic_buffer<DynamicBuffer>::value,
+    static_assert(webcpp::asio::is_dynamic_buffer<DynamicBuffer>::value,
                   "DynamicBuffer requirements not met");
 
     // The interfaces we are using are low level and do not
@@ -531,10 +531,10 @@ public:
         std::size_t bytes_transferred = 0;
 
         // Loop over the buffer sequence
-        for (auto it = boost::asio::buffer_sequence_begin(buffers);
-             it != boost::asio::buffer_sequence_end(buffers); ++it) {
+        for (auto it = webcpp::asio::buffer_sequence_begin(buffers);
+             it != webcpp::asio::buffer_sequence_end(buffers); ++it) {
             // This is the next buffer in the sequence
-            boost::asio::const_buffer const buffer = *it;
+            webcpp::asio::const_buffer const buffer = *it;
 
             // Write it to the std::ostream
             os_.write(reinterpret_cast<char const*>(buffer.data()), buffer.size());

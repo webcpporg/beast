@@ -31,11 +31,11 @@
 //
 //------------------------------------------------------------------------------
 
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl.hpp>
+#include <webcpp/asio/as_tuple.hpp>
+#include <webcpp/asio/awaitable.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/io_context.hpp>
+#include <webcpp/asio/ssl.hpp>
 #include <webcpp/beast/core.hpp>
 
 #include "common/root_certificates.hpp"
@@ -48,8 +48,8 @@
 
 namespace beast = webcpp::beast;
 namespace http = beast::http;
-namespace net = boost::asio;
-namespace ssl = boost::asio::ssl;
+namespace net = webcpp::asio;
+namespace ssl = webcpp::asio::ssl;
 
 //------------------------------------------------------------------------------
 

@@ -9,10 +9,10 @@
 
 #include <webcpp/beast/config.hpp>
 
-#if defined(WEBCPP_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP3)
+#if WEBCPP_BEAST_HAS_OPENSSL_BACKEND
 #include <webcpp/asio/ssl.hpp>
 
-#include <boost/beast/ssl.hpp>  // lint-world: explicit guest-owned TLS stream
+#include WEBCPP_BEAST_BACKEND_HEADER(ssl.hpp)  // lint-world: explicit guest-owned TLS stream
 #include <boost/system/result.hpp>
 
 #include <algorithm>
@@ -21,7 +21,7 @@
 
 namespace webcpp::beast {
 /** Upstream TLS stream, linked through the explicit guest TLS target. */
-using boost::beast::ssl_stream;
+using ::webcpp::beast_backend::ssl_stream;
 
 /**
  Sets the TLS Server Name Indication hostname on a guest-owned TLS stream.
@@ -44,7 +44,7 @@ template <class NextLayer>
     std::ranges::copy(host, name.begin());
     if (SSL_set_tlsext_host_name(stream.native_handle(), name.data()) != 1) {
         return boost::system::error_code(static_cast<int>(ERR_get_error()),
-                                         boost::asio::error::get_ssl_category());
+                                         ::webcpp::asio_backend::error::get_ssl_category());
     }
     return {};
 }
@@ -52,7 +52,7 @@ template <class NextLayer>
 #elif defined(WEBCPP_TARGET_EMSCRIPTEN)
 #include <webcpp/beast/browser/ssl_stream.hpp>
 #else
-#error "Guest-owned Beast TLS currently requires native or WASIp3 and /webcpp/beast//tls"
+#error "Guest-owned Beast TLS requires native or WASI and an explicitly linked OpenSSL provider"
 #endif
 
 #endif

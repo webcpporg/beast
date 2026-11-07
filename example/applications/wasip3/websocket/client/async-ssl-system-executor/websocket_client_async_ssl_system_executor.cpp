@@ -34,22 +34,22 @@
 
 #include "common/root_certificates.hpp"
 
-#include <boost/asio/ssl.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/asio/system_executor.hpp>
-#include <boost/beast/websocket/ssl.hpp>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <webcpp/asio/ssl.hpp>
+#include <webcpp/asio/strand.hpp>
+#include <webcpp/asio/system_executor.hpp>
 #include <webcpp/beast/core.hpp>
+#include <webcpp/beast/websocket/ssl.hpp>
 
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-namespace ssl = boost::asio::ssl;        // from <boost/asio/ssl.hpp>
-using tcp = webcpp::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+namespace ssl = webcpp::asio::ssl;       // from <webcpp/asio/ssl.hpp>
+using tcp = webcpp::asio::ip::tcp;       // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 
@@ -69,14 +69,14 @@ class session : public std::enable_shared_from_this<session> {
 
     // Objects are constructed with a strand to
     // ensure that handlers do not execute concurrently.
-    session(net::strand<boost::asio::any_io_executor> ex, ssl::context& ctx)
+    session(net::strand<webcpp::asio::any_io_executor> ex, ssl::context& ctx)
         : resolver_(ex), ws_(ex, ctx) {}
 
 public:
     // Delegate construction to a prive constructor to be able to use
     // the same strand for both I/O objects.
     explicit session(webcpp::asio::io_context& ioc, ssl::context& ctx)
-        : session(net::make_strand(boost::asio::any_io_executor(ioc.get_executor())), ctx) {}
+        : session(net::make_strand(webcpp::asio::any_io_executor(ioc.get_executor())), ctx) {}
 
     // Start the asynchronous operation
     void run(char const* host, char const* port, char const* text) {

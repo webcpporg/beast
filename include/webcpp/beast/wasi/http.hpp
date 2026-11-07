@@ -13,8 +13,8 @@
 #include <webcpp/beast/http.hpp>
 #include <webcpp/wasi/http/host.hpp>
 
-#include <boost/asio/buffer.hpp>               // lint-world: caller-owned memory buffers only
-#include <boost/beast/core/buffers_range.hpp>  // lint-world: memory buffer iteration only
+#include WEBCPP_ASIO_BACKEND_HEADER(buffer.hpp)  // lint-world: caller-owned memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/buffers_range.hpp)  // lint-world: memory buffer iteration only
 #include <boost/system/error_code.hpp>
 
 #include <array>
@@ -81,13 +81,13 @@ inline boost::system::error_code error_code(host::message_error value) {
 
 /** Borrows a standard view as a Beast view.
     @return A borrowed view of the same bytes. */
-inline boost::beast::string_view view(std::string_view value) {
+inline ::webcpp::beast_backend::string_view view(std::string_view value) {
     return {value.data(), value.size()};
 }
 
 /** Borrows a Beast view as a standard view.
     @return A borrowed view of the same bytes. */
-inline std::string_view view(boost::beast::string_view value) {
+inline std::string_view view(::webcpp::beast_backend::string_view value) {
     return {value.data(), value.size()};
 }
 
@@ -135,7 +135,7 @@ std::size_t read_body(host::body_reader& source, http::message<Request, Body, Fi
             error = error_code(failure);
             return total;
         }
-        total += reader.put(boost::asio::buffer(storage.data(), size), error);
+        total += reader.put(::webcpp::asio_backend::buffer(storage.data(), size), error);
         if (error) {
             return total;
         }
@@ -170,7 +170,7 @@ std::size_t write_body(host::body_writer& target, http::message<Request, Body, F
         if (error || !next) {
             break;
         }
-        for (auto const buffer : boost::beast::buffers_range_ref(next->first)) {
+        for (auto const buffer : ::webcpp::beast_backend::buffers_range_ref(next->first)) {
             auto bytes = std::string_view(static_cast<const char*>(buffer.data()), buffer.size());
             while (!bytes.empty()) {
                 host::message_error failure;

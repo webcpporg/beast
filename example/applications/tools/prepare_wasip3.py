@@ -119,7 +119,7 @@ def generate(formatter):
             not row["stackful"]]
     project = prepare.APPLICATIONS.parents[1] / "test/applications/wasip3"
     project.mkdir(exist_ok=True)
-    lines = [prepare.JAM_NOTICE, "import webcpp ;\nwebcpp.targets wasip3 ;\n",
+    lines = [prepare.JAM_NOTICE, "import webcpp ;\nwebcpp.targets wasip2 wasip3 ;\n",
              "webcpp.original python3 : .. ;\n"]
     for row in rows:
         sources = " ".join("../../../example/applications/wasip3/" + source
@@ -132,7 +132,9 @@ def generate(formatter):
                      "    <include>../../../example/applications <threading>single\n"
                      "    <define>BOOST_ASIO_HAS_CO_AWAIT=1\n"
                      "    <define>BOOST_ASIO_HAS_STD_COROUTINE=1\n"
-                     f"  : ../driver.py : {row['id']} : wasip3 ;\n")
+                     f"  : ../driver.py : {row['id']} : wasip2 wasip3 ;\n")
+    lines.append("webcpp.lane applications-p2 :\n  " +
+                 "\n  ".join(row["id"] for row in rows) + "\n  : wasip2 ;\n")
     lines.append("webcpp.lane applications-p3 :\n  " +
                  "\n  ".join(row["id"] for row in rows) + "\n  : wasip3 ;\n")
     prepare.write_changed(project / "Jamfile", "".join(lines))

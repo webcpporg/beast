@@ -7,6 +7,18 @@
 [#beast-verification]
 == Verification and reproduction
 
+The <<application-profile-matrix>> contains the current application refresh for the
+shipped implementation, including separate browser page/worker and single/multi
+profiles. The dated contract-test record below remains historical evidence; it
+must not be read as a fresh run of the unsubmitted migration or as performance
+data.
+
+The shared
+link:{webcpp-libs}/cobalt/{webcpp-page}#cobalt-release-measurements[Release comparison]
+also measures Beast HTTP response parsing inside matched Asio/Cobalt workloads.
+That in-memory parser workload measures neither transport latency nor TLS
+throughput. It must not be presented as a network performance comparison.
+
 The local evidence below was collected on macOS ARM64 on 2026-11-02 and 2026-11-03 with Boost
 1.92, native Clang 21, wasi-sdk 34, Emscripten 6.0.11 and Wasmtime 50.0.1.
 Core and guest TLS runs use Release builds. Browser contract runs use Debug,
@@ -74,6 +86,14 @@ The configuration tests include a deliberately failing cross-translation-unit
 link with different browser policies and a matching-policy success control.
 An expected compile/link failure is a passing negative test only when B2 reports
 `failed-as-expected` and its success control also passes.
+
+The local closure regression on 2026-11-07 additionally exercises the public HTTP
+serializer in real Chrome with JSPI and Asyncify. With exceptions enabled, a
+forced chunk-header allocation failure must reach the caller as `std::bad_alloc`,
+not abort. A fixed-length body and successful chunked serialization are controls.
+The builds without exceptions exercise successful serialization only; they do
+not claim recovery from exhausted memory. The native Boost 1.92 reproduction
+retains the upstream termination behavior described in <<beast-explanation>>.
 
 [#beast-reproduce]
 === Reproduce a suite

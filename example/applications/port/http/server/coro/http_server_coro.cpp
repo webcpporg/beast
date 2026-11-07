@@ -30,9 +30,6 @@
 //------------------------------------------------------------------------------
 
 #include <algorithm>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/spawn.hpp>
 #include <boost/config.hpp>
 #include <cstdlib>
 #include <iostream>
@@ -40,12 +37,15 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <webcpp/asio/detached.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
+#include <webcpp/asio/spawn.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;    // from <webcpp/beast.hpp>
 namespace http = beast::http;       // from <webcpp/beast/http.hpp>
-namespace net = boost::asio;        // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 // Return a reasonable mime type based on the extension of a file.
 namespace {
@@ -376,14 +376,14 @@ void do_listen(webcpp::asio::io_context& ioc, tcp::endpoint endpoint,
         if (ec) {
             fail(ec, "accept");
         } else {
-            boost::asio::spawn(acceptor.get_executor(),
-                               // The concrete bound signature selects the upstream Asio
-                               // spawn/completion overload. NOLINTNEXTLINE(modernize-avoid-bind)
-                               std::bind(&do_session, beast::tcp_stream(std::move(socket)),
-                                         doc_root, std::placeholders::_1),
-                               // we ignore the result of the session,
-                               // most errors are handled with error_code
-                               boost::asio::detached);
+            webcpp::asio::spawn(acceptor.get_executor(),
+                                // The concrete bound signature selects the upstream Asio
+                                // spawn/completion overload. NOLINTNEXTLINE(modernize-avoid-bind)
+                                std::bind(&do_session, beast::tcp_stream(std::move(socket)),
+                                          doc_root, std::placeholders::_1),
+                                // we ignore the result of the session,
+                                // most errors are handled with error_code
+                                webcpp::asio::detached);
         }
     }
 }
@@ -409,25 +409,25 @@ int main(int argc, char** argv) {
     webcpp::asio::io_context ioc{threads};
 
     // Spawn a listening port
-    boost::asio::spawn(ioc,
-                       // The concrete bound signature selects the upstream Asio spawn/completion
-                       // overload. NOLINTNEXTLINE(modernize-avoid-bind)
-                       std::bind(&do_listen, std::ref(ioc), tcp::endpoint{address, port}, doc_root,
-                                 std::placeholders::_1),
-                       // on completion, spawn will call this function
-                       // Value parameters retain the upstream callback and coroutine ownership
-                       // contract. NOLINTNEXTLINE(performance-unnecessary-value-param)
-                       [](std::exception_ptr ex) {
-                           // if an exception occurred in the coroutine,
-                           // it's something critical, e.g. out of memory
-                           // we capture normal errors in the ec
-                           // so we just rethrow the exception here,
-                           // which will cause `ioc.run()` to throw // lint-run: drives the
-                           // application's network operations
-                           if (ex) {
-                               std::rethrow_exception(ex);
-                           }
-                       });
+    webcpp::asio::spawn(ioc,
+                        // The concrete bound signature selects the upstream Asio spawn/completion
+                        // overload. NOLINTNEXTLINE(modernize-avoid-bind)
+                        std::bind(&do_listen, std::ref(ioc), tcp::endpoint{address, port}, doc_root,
+                                  std::placeholders::_1),
+                        // on completion, spawn will call this function
+                        // Value parameters retain the upstream callback and coroutine ownership
+                        // contract. NOLINTNEXTLINE(performance-unnecessary-value-param)
+                        [](std::exception_ptr ex) {
+                            // if an exception occurred in the coroutine,
+                            // it's something critical, e.g. out of memory
+                            // we capture normal errors in the ec
+                            // so we just rethrow the exception here,
+                            // which will cause `ioc.run()` to throw // lint-run: drives the
+                            // application's network operations
+                            if (ex) {
+                                std::rethrow_exception(ex);
+                            }
+                        });
 
     // Run the I/O service on the requested number of threads
     std::vector<std::thread> v;

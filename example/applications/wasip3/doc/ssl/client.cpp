@@ -25,18 +25,18 @@
 // Official repository: https://github.com/boostorg/beast
 //
 
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/buffers_iterator.hpp>
-#include <boost/asio/cancel_after.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/consign.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/ssl.hpp>
-#include <boost/asio/strand.hpp>
+#include <webcpp/asio/as_tuple.hpp>
+#include <webcpp/asio/awaitable.hpp>
+#include <webcpp/asio/bind_cancellation_slot.hpp>
+#include <webcpp/asio/bind_executor.hpp>
+#include <webcpp/asio/buffers_iterator.hpp>
+#include <webcpp/asio/cancel_after.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/consign.hpp>
+#include <webcpp/asio/detached.hpp>
+#include <webcpp/asio/dispatch.hpp>
+#include <webcpp/asio/ssl.hpp>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast.hpp>
 
 #include <iostream>
@@ -45,7 +45,7 @@
 
 namespace beast = webcpp::beast;
 namespace http = beast::http;
-namespace net = boost::asio;
+namespace net = webcpp::asio;
 namespace ssl = net::ssl;
 
 namespace {

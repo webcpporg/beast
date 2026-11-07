@@ -10,14 +10,14 @@
 #include <webcpp/beast/config.hpp>
 
 #include <algorithm>
-#include <boost/asio/append.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/associated_allocator.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/associated_cancellation_slot.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/associated_executor.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/async_result.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/bind_allocator.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/error.hpp>  // lint-world: browser operation scheduling and handler associations
-#include <boost/asio/executor_work_guard.hpp>  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(append.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(associated_allocator.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(associated_cancellation_slot.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(associated_executor.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(async_result.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(bind_allocator.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(error.hpp)  // lint-world: browser operation scheduling and handler associations
+#include WEBCPP_ASIO_BACKEND_HEADER(executor_work_guard.hpp)  // lint-world: browser operation scheduling and handler associations
 #include <boost/system/system_error.hpp>
 #include <boost/throw_exception.hpp>
 #include <chrono>
@@ -54,14 +54,14 @@ using boost::system::error_code;
 /**
  Executor used to schedule stream operations and their completions.
  */
-using executor_type = boost::asio::any_io_executor;
+using executor_type = ::webcpp::asio_backend::any_io_executor;
 
 /**
  Maps an unsupported request to the selected compatibility policy.
  */
 inline error_code unsupported(bool condition = true) {
     return condition && !ignore_unsupported
-               ? error_code(boost::asio::error::operation_not_supported)
+               ? error_code(::webcpp::asio_backend::error::operation_not_supported)
                : error_code{};
 }
 
@@ -80,8 +80,8 @@ inline void throw_error(error_code ec) {
 template <class Handler, class... Values>
 void post(const executor_type& executor, Handler&& handler, Values&&... values) {
     webcpp::asio::detail::post_completion(
-        executor,
-        boost::asio::append(std::forward<Handler>(handler), std::forward<Values>(values)...));
+        executor, ::webcpp::asio_backend::append(std::forward<Handler>(handler),
+                                                 std::forward<Values>(values)...));
 }
 
 /**
@@ -203,17 +203,18 @@ struct pending {
 template <class Handler, bool Sized, class Action>
 class operation final : public pending {
     using allocator_type = std::allocator_traits<
-        boost::asio::associated_allocator_t<Handler>>::template rebind_alloc<operation>;
+        ::webcpp::asio_backend::associated_allocator_t<Handler>>::template rebind_alloc<operation>;
     Handler handler_;
     Action action_;
     pending*& slot_;
     executor_type executor_;
-    boost::asio::executor_work_guard<executor_type> work_;
-    boost::asio::executor_work_guard<boost::asio::associated_executor_t<Handler, executor_type>>
+    ::webcpp::asio_backend::executor_work_guard<executor_type> work_;
+    ::webcpp::asio_backend::executor_work_guard<
+        ::webcpp::asio_backend::associated_executor_t<Handler, executor_type>>
         completion_work_;
 
     void destroy() {
-        allocator_type allocator(boost::asio::get_associated_allocator(handler_));
+        allocator_type allocator(::webcpp::asio_backend::get_associated_allocator(handler_));
         std::allocator_traits<allocator_type>::destroy(allocator, this);
         std::allocator_traits<allocator_type>::deallocate(allocator, this, 1);
     }
@@ -228,20 +229,20 @@ public:
           slot_(slot),
           executor_(std::move(executor)),
           work_(executor_),
-          completion_work_(boost::asio::get_associated_executor(handler_, executor_)) {
+          completion_work_(::webcpp::asio_backend::get_associated_executor(handler_, executor_)) {
         slot_ = this;
     }
 
     /**
      Installs cancellation handling for a pending operation.
      */
-    void start(boost::asio::cancellation_type mask, const auto& cancel) {
-        auto cancellation = boost::asio::get_associated_cancellation_slot(handler_);
+    void start(::webcpp::asio_backend::cancellation_type mask, const auto& cancel) {
+        auto cancellation = ::webcpp::asio_backend::get_associated_cancellation_slot(handler_);
         if (cancellation.is_connected()) {
             cancellation.assign([this, mask, cancel](auto kind) {
-                if ((kind & mask) != boost::asio::cancellation_type::none) {
+                if ((kind & mask) != ::webcpp::asio_backend::cancellation_type::none) {
                     cancel();
-                    complete(boost::asio::error::operation_aborted);
+                    complete(::webcpp::asio_backend::error::operation_aborted);
                 }
             });
         }
@@ -251,7 +252,7 @@ public:
      Releases operation storage without invoking the handler during context destruction.
      */
     void discard() override {
-        boost::asio::get_associated_cancellation_slot(handler_).clear();
+        ::webcpp::asio_backend::get_associated_cancellation_slot(handler_).clear();
         slot_ = nullptr;
         destroy();
     }
@@ -260,10 +261,10 @@ public:
      Releases operation storage and posts exactly one completion.
      */
     void complete(error_code ec = {}, std::size_t count = 0) override {
-        boost::asio::get_associated_cancellation_slot(handler_).clear();
+        ::webcpp::asio_backend::get_associated_cancellation_slot(handler_).clear();
         slot_ = nullptr;
         action_(ec, count);
-        allocator_type allocator(boost::asio::get_associated_allocator(handler_));
+        allocator_type allocator(::webcpp::asio_backend::get_associated_allocator(handler_));
         auto handler = std::move(handler_);
         const auto executor = executor_;
         // Post before releasing work; the queued completion then owns the wakeup.
@@ -282,11 +283,11 @@ public:
  */
 template <bool Sized, class Handler, class Action, class Cancel>
 void start(pending*& slot, const executor_type& executor, Handler&& handler, Action action,
-           boost::asio::cancellation_type mask, const Cancel& cancel) {
+           ::webcpp::asio_backend::cancellation_type mask, const Cancel& cancel) {
     using type = operation<std::decay_t<Handler>, Sized, Action>;
-    using allocator_type = std::allocator_traits<
-        boost::asio::associated_allocator_t<std::decay_t<Handler>>>::template rebind_alloc<type>;
-    allocator_type allocator(boost::asio::get_associated_allocator(handler));
+    using allocator_type = std::allocator_traits<::webcpp::asio_backend::associated_allocator_t<
+        std::decay_t<Handler>>>::template rebind_alloc<type>;
+    allocator_type allocator(::webcpp::asio_backend::get_associated_allocator(handler));
     auto* object = std::allocator_traits<allocator_type>::allocate(allocator, 1);
     std::allocator_traits<allocator_type>::construct(
         allocator, object, std::forward<Handler>(handler), std::move(action), slot, executor);

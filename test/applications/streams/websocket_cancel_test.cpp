@@ -3,20 +3,20 @@
 // Distributed under the Boost Software License, Version 1.0. (See
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/cancellation_signal.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/asio/use_awaitable.hpp>
 #include <boost/core/lightweight_test.hpp>
+#include <webcpp/asio/as_tuple.hpp>
+#include <webcpp/asio/bind_cancellation_slot.hpp>
+#include <webcpp/asio/cancellation_signal.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/steady_timer.hpp>
+#include <webcpp/asio/use_awaitable.hpp>
 #include <webcpp/beast/core.hpp>
 #include <webcpp/beast/websocket.hpp>
 #include <webcpp/test/exit_status.hpp>
 #include "../../../example/applications/streams/websocket-channel.hpp"
 
 int main() {
-    namespace asio = boost::asio;
+    namespace asio = webcpp::asio;
     asio::io_context context;
     webcpp::beast::websocket::stream<supplied_example::channel> stream(context.get_executor());
     webcpp::beast::flat_buffer buffer;

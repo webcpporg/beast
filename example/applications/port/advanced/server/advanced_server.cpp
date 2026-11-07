@@ -31,10 +31,6 @@
 //------------------------------------------------------------------------------
 
 #include <algorithm>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/make_unique.hpp>
 #include <boost/optional.hpp>
 #include <cstdlib>
@@ -45,13 +41,17 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <webcpp/asio/bind_executor.hpp>
+#include <webcpp/asio/dispatch.hpp>
+#include <webcpp/asio/signal_set.hpp>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;       // from <webcpp/asio/ip/tcp.hpp>
 
 // Return a reasonable mime type based on the extension of a file.
 namespace {

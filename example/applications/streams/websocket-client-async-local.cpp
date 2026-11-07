@@ -19,9 +19,9 @@
 #include <webcpp/beast/websocket.hpp>
 #include "websocket-channel.hpp"
 #ifdef __wasip2__
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/use_awaitable.hpp>
+#include <webcpp/asio/as_tuple.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/use_awaitable.hpp>
 #endif
 
 int main(int argc, const char* const* argv) {
@@ -30,7 +30,7 @@ int main(int argc, const char* const* argv) {
     if (argc != 3) {
         return 64;
     }
-    boost::asio::io_context context;
+    webcpp::asio::io_context context;
     websocket::stream<supplied_example::channel> stream(context.get_executor());
     stream.set_option(websocket::stream_base::decorator([](websocket::request_type& request) {
         request.set(beast::http::field::user_agent,
@@ -38,17 +38,17 @@ int main(int argc, const char* const* argv) {
     }));
 #ifdef __wasip2__
     int result = 1;
-    boost::asio::co_spawn(
+    webcpp::asio::co_spawn(
         context,
-        [&]() -> boost::asio::awaitable<void> {
-            auto token = boost::asio::as_tuple(boost::asio::use_awaitable);
+        [&]() -> webcpp::asio::awaitable<void> {
+            auto token = webcpp::asio::as_tuple(webcpp::asio::use_awaitable);
             auto [handshake_error] = co_await stream.async_handshake(argv[1], "/", token);
             if (handshake_error) {
                 co_return;
             }
             stream.text(true);
             auto [write_error, written] = co_await stream.async_write(
-                boost::asio::buffer(argv[2], std::strlen(argv[2])), token);
+                webcpp::asio::buffer(argv[2], std::strlen(argv[2])), token);
             if (write_error) {
                 result = 2;
                 co_return;
@@ -59,7 +59,7 @@ int main(int argc, const char* const* argv) {
                 result = 3;
                 co_return;
             }
-            const auto output = boost::beast::buffers_to_string(reply.data());
+            const auto output = webcpp::beast::buffers_to_string(reply.data());
             static_cast<void>(std::fprintf(stderr, "%s\n", output.c_str()));
             auto [close_error] = co_await stream.async_close(websocket::close_code::normal, token);
             result = close_error ? 4 : 0;
@@ -78,7 +78,7 @@ int main(int argc, const char* const* argv) {
         return 1;
     }
     stream.text(true);
-    stream.write(boost::asio::buffer(argv[2], std::strlen(argv[2])), error);
+    stream.write(webcpp::asio::buffer(argv[2], std::strlen(argv[2])), error);
     if (error) {
         return 2;
     }
@@ -87,7 +87,7 @@ int main(int argc, const char* const* argv) {
     if (error) {
         return 3;
     }
-    const auto output = boost::beast::buffers_to_string(reply.data());
+    const auto output = webcpp::beast::buffers_to_string(reply.data());
     static_cast<void>(std::fprintf(stderr, "%s\n", output.c_str()));
     stream.close(websocket::close_code::normal, error);
     return error ? 4 : 0;

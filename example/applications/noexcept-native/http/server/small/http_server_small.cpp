@@ -30,7 +30,6 @@
 //
 //------------------------------------------------------------------------------
 
-#include <boost/asio.hpp>
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -41,8 +40,8 @@
 
 namespace beast = webcpp::beast;    // from <webcpp/beast.hpp>
 namespace http = beast::http;       // from <webcpp/beast/http.hpp>
-namespace net = boost::asio;        // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 namespace {
 namespace my_program_state {

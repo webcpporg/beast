@@ -6,7 +6,8 @@
 
 project : requirements <library>/webcpp/beast//tls ;
 import webcpp ;
-webcpp.targets native wasip3 ;
+webcpp.targets native wasip2 wasip3 ;
 webcpp.original python3 ;
 webcpp.drive protocol : protocol.cpp : <webcpp-drive-timeout>90 : run.py ;
-webcpp.lane tls : protocol : native wasip3 ;
+webcpp.lane tls : protocol : native wasip2 wasip3 ;
+webcpp.compile public_headers : public_headers.cpp ;

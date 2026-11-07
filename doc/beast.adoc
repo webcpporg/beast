@@ -12,8 +12,13 @@
 :attribute-missing: warn
 
 `webcpp::beast` is a {cpp}20 compatibility facade for Boost.Beast applications.
+Its purpose is to make those applications usable in WebAssembly through
+Emscripten or WASIp2/P3, with explicit adaptations where the host has different
+network facilities. JSPI and Asyncify are Emscripten suspension variants;
+they are not WASI versions. Native upstream-equivalent types, including the
+WebSocket stream, are aliases of the actual Boost.Beast types.
 It preserves Boost.Beast's messages, buffers and parsers while selecting a
-transport appropriate to the program's environment. Native and WASIp3 socket
+transport appropriate to the program's environment. Native and WASIp2/P3 socket
 programs use the guest protocol engine. Browser clients use WebSocket and fetch;
 WASI host HTTP programs use the host's request and response resources.
 The application matrix distinguishes direct source compatibility from explicit
@@ -113,7 +118,7 @@ fails the test. Supplying a guest TCP acceptor is unnecessary for this backend.
 |===
 |B2 dependency |Purpose
 |`/webcpp/beast//beast` |Portable buffers, HTTP messages, parsers and serializers.
-|`/webcpp/beast//sockets` |Native/WASIp3 guest socket algorithms and Asio configuration.
+|`/webcpp/beast//sockets` |Native/WASIp2/P3 guest socket algorithms and Asio configuration.
 |`/webcpp/beast//tls` |Guest-owned TLS with source-built OpenSSL.
 |`/webcpp/beast//browser` |Browser-owned WebSocket, fetch and TLS policy.
 |`/webcpp/beast//wasi-http` |WASIp2/P3 host HTTP resources, without guest sockets or OpenSSL.
@@ -130,10 +135,32 @@ host HTTP handler does not need the guest socket or TLS dependency. Combining
 backends is explicit, for example a WASIp3 service that accepts host HTTP requests
 and separately contacts a TCP service.
 
+[#beast-distribution]
+=== Build without B2
+
+Use `webcpp/beast/` headers and `webcpp::beast` names, together with the
+corresponding `webcpp::asio` types. Native equivalents are actual Boost types.
+Wasm selects the versioned protocol implementation shipped in the library;
+the maintainer importer is not a consumer build step, and no replacement Boost
+include tree is needed. Boost 1.92 remains an explicit dependency for other
+Boost facilities used by these headers.
+
+Socket and browser programs compile Asio's target-specific runtime source and
+use matching thread, exception and suspension settings. Guest TLS adds the
+explicit OpenSSL and CA provider. Host HTTP instead needs the bindings generated
+from the selected WASI world. These are different dependency contracts, not
+automatic substitutions based on an HTTP URL.
+
+The superproject's `tools/test/fixtures/portable-network/CMakeLists.txt` builds
+HTTP and WebSocket consumers from copied source distributions with explicit
+toolchain and dependency inputs. It uses the same implementation as B2.
+Application-matrix and measurement results identify their tested revision;
+historical results do not validate this distribution migration.
+
 [source,bash]
 ----
 b2 -a variant=release exception-handling=on,off libs/beast/test libs/beast/example
-b2 -a toolset=clang-wasip2 testing.launcher=wasmtime exception-handling=on,off libs/beast/test libs/beast/example
+b2 -a toolset=clang-wasip2 testing.launcher=tools/boost/asio-wasip2/run.sh exception-handling=on,off libs/beast/test libs/beast/example
 b2 -a toolset=clang-wasip3 testing.launcher=tools/boost/asio-wasip3/run.sh exception-handling=on,off libs/beast/test libs/beast/example
 b2 -a toolset=emscripten exception-handling=on,off libs/beast/test libs/beast/example
 ----
@@ -179,10 +206,20 @@ implemented as arbitrary raw-socket options. Host TLS never uses guest OpenSSL
 settings. Prefer explicit errors to silently claiming that the host accepted an
 unavailable setting.
 
-The native/WASI WebSocket allocator constructor accepts the portable constructor
+The WASI WebSocket allocator constructor accepts the portable constructor
 syntax, but upstream Beast still controls its internal stream-state allocation.
+Native uses the actual Boost stream and its original constructors.
 Associated completion-handler allocators retain upstream semantics. Data containers
 use their upstream allocator template parameters.
+
+The shipped Wasm engine corrects an upstream `noexcept` on the internal variant
+used by HTTP chunk serialization. With exceptions enabled, failure to allocate a
+chunk header propagates `std::bad_alloc`; without exceptions, allocation failure
+is not recoverable. Native retains the actual Boost 1.92 implementation, which
+terminates on that particular allocation failure. Error-code overloads do not
+turn allocation exceptions into protocol error codes. The browser regression
+injects the failure through the public HTTP serializer and verifies both the
+exception and the successful serialization controls.
 
 `set_server_name` configures SNI only. It copies a non-terminated string view into a
 bounded buffer and rejects empty, overlong or embedded-NUL hostnames. Certificate and
@@ -201,13 +238,13 @@ API or transport detail of the original program is available.
 |===
 |Feature |Native |WASIp2 |WASIp3 |Emscripten
 |HTTP message/parser/serializer interfaces |Implemented |Implemented |Implemented |Implemented
-|Guest HTTP/WebSocket socket engine |Asio sockets |Asio core available; guest-socket facade/application integration pending |Asio socket port |Explicit supplied byte stream only
+|Guest HTTP/WebSocket socket engine |Asio sockets |Asio pollable socket backend; see the dated application matrix |Asio socket port |Explicit supplied byte stream only
 |Browser WebSocket and fetch |Not applicable |Not applicable |Not applicable |JSPI and Asyncify
-|Guest TLS, identity verification and shutdown |Source-built OpenSSL |No guest TLS backend |Source-built OpenSSL |Browser owns TLS
+|Guest TLS, identity verification and shutdown |Source-built OpenSSL |Source-built OpenSSL |Source-built OpenSSL |Browser owns TLS
 |Host HTTP entry/client |Not applicable |wasi:http |wasi:http |fetch client only
 |Unix socket namespace and peer identity |Operating-system sockets |Unavailable |Unavailable |Unavailable
 |Explicit supplied-stream counterpart |Borrowed descriptors |CLI input/output; asynchronous WebSocket via pollables |CLI input/output |Caller-supplied channel
-|Raw TCP HTTP/WebSocket listener |Available |Use host HTTP entry |Available |Unavailable
+|Raw TCP HTTP/WebSocket listener |Available |Available with network grants |Available |Unavailable
 |Host HTTP WebSocket upgrade |Not applicable |Not provided by host adapter |Use guest socket backend |Browser WebSocket client only
 |Native CPU-parallel threads |Available |Unavailable |Cooperative WASI threads only |Not implied by this backend
 |===

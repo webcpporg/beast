@@ -14,7 +14,7 @@ import feature ;
 webcpp.targets native wasip2 wasip3 emscripten ;
 
 webcpp.headers-alone beast : ../include : beast.hpp beast/config.hpp
-  beast/core.hpp beast/http.hpp beast/browser/error.hpp ;
+  beast/core.hpp beast/http.hpp beast/browser/error.hpp beast/detail/backend_select.hpp ;
 webcpp.compile config : config_test.cpp ;
 webcpp.compile config_all_off : config_test.cpp
   : <define>WEBCPP_NO_EXCEPTIONS <define>WEBCPP_TEST_ALL_OFF ;
@@ -27,8 +27,8 @@ webcpp.compile-fail conflicting_policies : config_test.cpp
 webcpp.run message : message_test.cpp ;
 
 webcpp.headers-alone beast : ../include : beast/tcp_stream.hpp beast/websocket.hpp beast/http/read.hpp beast/http/write.hpp
-  : <library>/webcpp/beast//sockets : native wasip3 emscripten ;
-webcpp.run socket : socket_test.cpp : <library>/webcpp/beast//sockets : native wasip3 ;
+  : <library>/webcpp/beast//sockets : native wasip2 wasip3 emscripten ;
+webcpp.run socket : socket_test.cpp : <library>/webcpp/beast//sockets : native wasip2 wasip3 ;
 
 # One header unit supplies the combined dependencies for aggregate analysis.
 # A browser parse must never acquire guest OpenSSL through that combination.
@@ -41,11 +41,11 @@ rule ssl-header-dependencies ( properties * )
     return <library>/webcpp/beast//tls <library>/webcpp/beast//wasi-http ;
 }
 webcpp.headers-alone beast : ../include : beast/ssl.hpp
-  : <conditional>@ssl-header-dependencies : native wasip3 emscripten ;
-webcpp.run ssl : ssl_test.cpp : <library>/webcpp/beast//tls : native wasip3 ;
+  : <conditional>@ssl-header-dependencies : native wasip2 wasip3 emscripten ;
+webcpp.run ssl : ssl_test.cpp : <library>/webcpp/beast//tls : native wasip2 wasip3 ;
 
 webcpp.headers-alone beast : ../include : beast/detail/socket_algorithms.hpp
-  : <library>/webcpp/beast//sockets : native wasip3 ;
+  : <library>/webcpp/beast//sockets : native wasip2 wasip3 ;
 webcpp.headers-alone beast : ../include
   : beast/browser/tcp_stream.hpp beast/browser/ssl_stream.hpp
     beast/browser/websocket.hpp beast/browser/http.hpp

@@ -7,6 +7,7 @@
 """Materialize all required application/profile cells without shrinking the denominator."""
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -14,17 +15,31 @@ from pathlib import Path
 import inventory
 
 PROFILES = (
-    "native-original-threads-eh-on", "native-port-threads-eh-on", "native-port-single-eh-on",
-    "native-port-single-eh-off", "native-port-threads-eh-off",
-    "wasip2-socket-eh-on", "wasip2-socket-eh-off",
-    "wasip3-socket-single-eh-on", "wasip3-socket-single-eh-off",
-    "wasip3-socket-cooperative-eh-on", "wasip3-socket-cooperative-eh-off",
-    "wasip2-host-http-eh-on", "wasip2-host-http-eh-off",
-    "wasip3-host-http-eh-on", "wasip3-host-http-eh-off",
-    "wasip2-supplied-stream-eh-on", "wasip2-supplied-stream-eh-off",
-    "wasip3-supplied-stream-eh-on", "wasip3-supplied-stream-eh-off",
-    "browser-jspi-eh-on", "browser-jspi-eh-off",
-    "browser-asyncify-eh-on", "browser-asyncify-eh-off",
+    "native-original-threads-eh-on",
+    "native-port-threads-eh-on",
+    "native-port-single-eh-on",
+    "native-port-single-eh-off",
+    "native-port-threads-eh-off",
+    "wasip2-socket-eh-on",
+    "wasip2-socket-eh-off",
+    "wasip3-socket-single-eh-on",
+    "wasip3-socket-single-eh-off",
+    "wasip3-socket-cooperative-eh-on",
+    "wasip3-socket-cooperative-eh-off",
+    "wasip2-host-http-eh-on",
+    "wasip2-host-http-eh-off",
+    "wasip3-host-http-eh-on",
+    "wasip3-host-http-eh-off",
+    "wasip2-supplied-stream-eh-on",
+    "wasip2-supplied-stream-eh-off",
+    "wasip3-supplied-stream-eh-on",
+    "wasip3-supplied-stream-eh-off",
+) + tuple(
+    f"browser-{variant}-{threads}-eh-{eh}-{host}"
+    for variant in ("jspi", "asyncify")
+    for threads in ("single", "multi")
+    for eh in ("on", "off")
+    for host in ("page", "worker")
 )
 
 
@@ -32,14 +47,10 @@ def base_cell(row, profile):
     state = "planned"
     reason = "No measured evidence for this profile."
     if profile.startswith("wasip2-socket"):
-        state = "blocked"
-        reason = ("Asio P2 core is available; guest-socket application adapters still require "
-                  "P2 integration and validation.")
-        if row["tls"]:
-            reason = ("Asio P2 provides guest OpenSSL; Beast guest-TLS applications still "
-                      "require P2 integration and validation.")
-        elif row["stackful"]:
-            reason = "Boost.Context has no verified WASI backend."
+        state = "planned"
+        reason = "P2 sockets and TLS require evidence for this application cell."
+        if row["stackful"]:
+            state, reason = "blocked", "Boost.Context has no verified WASI backend."
     if "socket" in profile and row["local_socket"]:
         state, reason = "platform-unavailable", "WASI has no Unix-domain socket namespace."
     if profile.startswith("wasip3-socket") and row["stackful"]:
@@ -61,8 +72,9 @@ def base_cell(row, profile):
         state, reason = "planned", "Requires an explicit host HTTP application counterpart."
     if "host-http" in profile and row["id"] == "echo-op":
         state, reason = "platform-unavailable", "Raw TCP echo has no HTTP host operation."
-    if "host-http" in profile and (row["path"].startswith("websocket/") or
-                                   row["id"] == "websocket-chat-multi"):
+    if "host-http" in profile and (
+        row["path"].startswith("websocket/") or row["id"] == "websocket-chat-multi"
+    ):
         state = "platform-unavailable"
         reason = "WASI HTTP cannot expose WebSocket upgrade streams."
     if "supplied-stream" in profile and not row["local_socket"]:
@@ -75,16 +87,21 @@ def normalized_run(path):
         position = line.find('{"application"')
         if position >= 0:
             result = json.loads(line[position:])
-            return {key: value for key, value in result.items()
-                    if key not in ("command", "commands", "startup_seconds")}
+            return {
+                key: value
+                for key, value in result.items()
+                if key not in ("command", "commands", "startup_seconds")
+            }
     raise ValueError(f"No observed application result in {path}")
 
 
 def create(evidence):
     manifest = inventory.load()
     inventory.validate(manifest)
-    cells = {row["id"]: {profile: base_cell(row, profile) for profile in PROFILES}
-             for row in manifest["applications"]}
+    cells = {
+        row["id"]: {profile: base_cell(row, profile) for profile in PROFILES}
+        for row in manifest["applications"]
+    }
     native_file = evidence / "native-applications/results.json"
     if native_file.exists():
         native = json.loads(native_file.read_text())
@@ -93,11 +110,16 @@ def create(evidence):
                 raise ValueError(f"Unknown measured application {name}")
             for variant, result in variants.items():
                 inventory.validate_result(result)
-                profile = "native-original-threads-eh-on" if variant == "oracle" \
+                profile = (
+                    "native-original-threads-eh-on"
+                    if variant == "oracle"
                     else "native-port-threads-eh-on"
+                )
                 cells[name][profile] = result
-            if all(inventory.application_passed(variants.get(variant, {}))
-                   for variant in ("oracle", "port")):
+            if all(
+                inventory.application_passed(variants.get(variant, {}))
+                for variant in ("oracle", "port")
+            ):
                 oracle = normalized_run(evidence / f"native-applications/oracle/{name}.run.log")
                 port = normalized_run(evidence / f"native-applications/port/{name}.run.log")
                 if oracle != port:
@@ -108,23 +130,38 @@ def create(evidence):
         log = evidence / f"applications-host-{abi}.log"
         if not log.exists():
             continue
-        observations = [json.loads(line) for line in log.read_text().splitlines()
-                        if line.startswith('{"application"')]
+        observations = [
+            json.loads(line)
+            for line in log.read_text().splitlines()
+            if line.startswith('{"application"')
+        ]
         for result in observations:
             name = result["application"]
             if name not in mapping["applications"]:
                 raise ValueError(f"Unmapped host application {name}")
-            command = ("b2 -a --user-config=.local/user-config.jam toolset=clang-wasi" + abi +
-                       " libs/beast/test/applications/host//" + name)
+            command = (
+                "b2 -a --user-config=.local/user-config.jam toolset=clang-wasi"
+                + abi
+                + " libs/beast/test/applications/host//"
+                + name
+            )
             cells[name][f"wasi{abi}-host-http-eh-on"] = {
-                "compile": "passed", "run": "passed", "compile_command": command,
-                "run_command": command, "evidence": [str(log)],
+                "compile": "passed",
+                "run": "passed",
+                "compile_command": command,
+                "run_command": command,
+                "evidence": [str(log)],
                 "adaptations": [mapping["adaptation"]],
                 "scope": "HTTP application handler; host owns listener/TLS; no WebSocket upgrade",
             }
     add_measurements(cells, evidence)
-    return {"upstream_commit": inventory.COMMIT, "applications_count": len(cells),
-            "profiles": PROFILES, "applications": cells}
+    add_current_measurements(cells, evidence)
+    return {
+        "upstream_commit": inventory.COMMIT,
+        "applications_count": len(cells),
+        "profiles": PROFILES,
+        "applications": cells,
+    }
 
 
 def observations(log):
@@ -135,16 +172,130 @@ def observations(log):
     return result
 
 
+def add_current_measurements(cells, evidence):
+    """Consume current receipts, never infer a variant from another variant's pass."""
+    examples = inventory.LIBRARY / "example/applications"
+    socket_map = json.loads((examples / "wasip3/mapping.json").read_text())
+    noeh_map = json.loads((examples / "noexcept-single/mapping.json").read_text())
+    browser_map = json.loads((examples / "browser/mapping.json").read_text())
+    tls = {row["id"] for row in inventory.load()["applications"] if row["tls"]}
+    for receipt in sorted(evidence.glob("beast-*.json")):
+        run = json.loads(receipt.read_text())
+        if not isinstance(run, dict) or run.get("status") != 0:
+            continue
+        name = run["id"]
+        if "browser" in name and not any(word.startswith("threading=") for word in run["command"]):
+            continue  # Historical receipts do not identify the requested thread profile.
+        log = receipt.with_suffix(".log")
+        if hashlib.sha256(log.read_bytes()).hexdigest() != run["log_sha256"]:
+            raise ValueError("Changed measured log: " + str(log))
+        source = evidence / run["source_manifest"]
+        if not source.is_file():
+            raise ValueError("Missing source manifest: " + str(source))
+        source_hash = hashlib.sha256(
+            json.dumps(json.loads(source.read_text()), sort_keys=True).encode()
+        ).hexdigest()
+        if source.name != source_hash + ".sources.json":
+            raise ValueError("Changed source manifest: " + str(source))
+        off = "exception-handling=off" in run["command"]
+        eh = "off" if off else "on"
+        for observed in observations(log):
+            application = observed["application"]
+            if application == "contract":
+                continue
+            if application not in cells:
+                raise ValueError("Unknown observed application: " + application)
+            backend = observed.get("backend", "")
+            adaptation, scope = socket_map["adaptations"], "Socket application counterpart"
+            if "browser" in name:
+                if backend not in ("jspi", "asyncify") or observed.get("result") != "passed":
+                    raise ValueError("Missing browser runtime identity/result")
+                host = observed.get("host")
+                threads = next(
+                    (
+                        word.split("=")[1]
+                        for word in run["command"]
+                        if word.startswith("threading=")
+                    ),
+                    None,
+                )
+                if host not in ("page", "worker") or threads not in ("single", "multi"):
+                    raise ValueError("Missing browser host/threading identity")
+                profile = f"browser-{backend}-{threads}-eh-{eh}-{host}"
+                adaptation, scope = browser_map["adaptations"], "Browser host transport counterpart"
+                if application in tls and not observed.get("tls_fixture", {}).get(
+                    "trust_and_hostname_verified"
+                ):
+                    raise ValueError("Missing browser TLS trust controls")
+            elif "-host-" in name:
+                abi = name.split("-")[1]
+                if backend == "supplied-stdio":
+                    profile = f"wasi{abi}-supplied-stream-eh-{eh}"
+                    adaptation = [
+                        "Unix-domain addressing replaced by supplied stdin/stdout streams."
+                    ]
+                    scope = "Supplied-stream counterpart"
+                else:
+                    profile = f"wasi{abi}-host-http-eh-{eh}"
+                    adaptation = [
+                        "WASI host owns the HTTP transport; controlled local endpoint fixture."
+                    ]
+                    scope = "Host HTTP counterpart"
+                    if application in tls and not application.startswith(
+                        ("http-server", "advanced-server")
+                    ):
+                        if application != "doc-ssl-server":
+                            cases = observed.get("cases", [])
+                            required = {"trusted localhost", "UnknownIssuer", "NotValidForName"}
+                            if application == "doc-ssl-client":
+                                required.add("CertificateRequired")
+                            if not required.issubset({item["case"] for item in cases}):
+                                continue  # Plain HTTP payload is not TLS evidence.
+                            if any(item["result"] != "passed" for item in cases):
+                                raise ValueError("Failed host TLS control")
+                            scope = "Host HTTPS counterpart with verified trust and hostname"
+            elif name.startswith("beast-native"):
+                command = observed.get("command", observed.get("commands", [[]])[0])
+                threads = "threads" if any("/threaded-" in word for word in command) else "single"
+                profile = f"native-port-{threads}-eh-{eh}"
+            else:
+                abi = name.split("-")[1]
+                if abi == "p2":
+                    profile = f"wasip2-socket-eh-{eh}"
+                else:
+                    threading = "cooperative" if "cooperative" in name else "single"
+                    profile = f"wasip3-socket-{threading}-eh-{eh}"
+            if off and "-host-" not in name and "browser" not in name:
+                adaptation = noeh_map["adaptations"]
+            if observed.get("result") not in (None, "passed"):
+                raise ValueError("Unexpected application result")
+            cell = measured(run["command"], log, adaptation, scope)
+            cell.update(
+                source_manifest=run["source_manifest"],
+                receipt=receipt.name,
+                log_sha256=run["log_sha256"],
+                observation=observed,
+            )
+            cells[application][profile] = cell
+
+
 def measured(command, log, adaptations, scope):
-    return {"compile": "passed", "run": "passed", "compile_command": command,
-            "run_command": command, "evidence": [log.name], "adaptations": adaptations,
-            "scope": scope}
+    return {
+        "compile": "passed",
+        "run": "passed",
+        "compile_command": command,
+        "run_command": command,
+        "evidence": [log.name],
+        "adaptations": adaptations,
+        "scope": scope,
+    }
 
 
 def add_measurements(cells, evidence):
     examples = inventory.LIBRARY / "example/applications"
-    tls_clients = {row["id"] for row in inventory.load()["applications"]
-                   if row["tls"] and not row["server"]}
+    tls_clients = {
+        row["id"] for row in inventory.load()["applications"] if row["tls"] and not row["server"]
+    }
     p3_map = json.loads((examples / "wasip3/mapping.json").read_text())
     browser_map = json.loads((examples / "browser/mapping.json").read_text())
     noeh_map = json.loads((examples / "noexcept-single/mapping.json").read_text())
@@ -155,10 +306,15 @@ def add_measurements(cells, evidence):
             name = record["application"]
             command = "b2 toolset=clang-wasip3 libs/beast/test/applications/wasip3//" + name
             cells[name]["wasip3-socket-single-eh-on"] = measured(
-                command, log, p3_map["adaptations"], "Socket application counterpart")
-    for filename in ("applications-native-noeh.log", "applications-p3-noeh.log",
-                     "applications-native-single.log", "applications-native-single-fast.log",
-                     "applications-p3-cooperative-noeh.log"):
+                command, log, p3_map["adaptations"], "Socket application counterpart"
+            )
+    for filename in (
+        "applications-native-noeh.log",
+        "applications-p3-noeh.log",
+        "applications-native-single.log",
+        "applications-native-single-fast.log",
+        "applications-p3-cooperative-noeh.log",
+    ):
         log = evidence / filename
         if not log.exists():
             continue
@@ -167,8 +323,11 @@ def add_measurements(cells, evidence):
             command = record.get("command", record.get("commands", [[]])[0])
             threaded = any("/threaded-" in part for part in command)
             native = "native" in filename
-            profile = ("native-port-threads-eh-off" if threaded else
-                       "native-port-single-eh-off") if native else "wasip3-socket-single-eh-off"
+            profile = (
+                ("native-port-threads-eh-off" if threaded else "native-port-single-eh-off")
+                if native
+                else "wasip3-socket-single-eh-off"
+            )
             target = ("threaded-" if threaded else "single-") + name
             if filename.startswith("applications-native-single"):
                 profile, target = "native-port-single-eh-on", "checked-" + name
@@ -182,12 +341,19 @@ def add_measurements(cells, evidence):
                 adaptations = p3_map["adaptations"]
                 scope = "Single-executor application counterpart; original exception handling"
                 if name == "websocket-server-fast":
-                    adaptations += ["The synchronous listener uses the callback state machine "
-                                    "on the same executor; three endpoint exchanges retained."]
+                    adaptations += [
+                        "The synchronous listener uses the callback state machine "
+                        "on the same executor; three endpoint exchanges retained."
+                    ]
             cells[name][profile] = measured(command, log, adaptations, scope)
-    for filename in ("applications-browser.log", "applications-browser-both.log",
-                     "applications-browser-both-green.log", "applications-browser-fix.log",
-                     "browser-methods-green.log", "browser-profile-trust-green.log"):
+    for filename in (
+        "applications-browser.log",
+        "applications-browser-both.log",
+        "applications-browser-both-green.log",
+        "applications-browser-fix.log",
+        "browser-methods-green.log",
+        "browser-profile-trust-green.log",
+    ):
         log = evidence / filename
         if not log.exists():
             continue
@@ -199,15 +365,20 @@ def add_measurements(cells, evidence):
                 continue
             for off in (False, True):
                 directory = "browser-noexcept" if off else "browser"
-                if not any(f"/applications/{directory}/run-{name}.test/" in path
-                           for path in passed_paths):
+                if not any(
+                    f"/applications/{directory}/run-{name}.test/" in path for path in passed_paths
+                ):
                     continue
-                profile = f"browser-{backend}-eh-" + ("off" if off else "on")
+                host, threads = record.get("host"), record.get("threading")
+                if host not in ("page", "worker") or threads not in ("single", "multi"):
+                    continue  # Do not expand old page-only evidence into new profiles.
+                profile = f"browser-{backend}-{threads}-eh-" + ("off" if off else "on") + "-" + host
                 command = "b2 toolset=emscripten libs/beast/test/applications/"
                 command += f"{directory}//run-{name}"
                 adaptations = browser_map["adaptations"] + (noeh_map["adaptations"] if off else [])
-                cells[name][profile] = measured(command, log, adaptations,
-                                                "Browser application counterpart")
+                cells[name][profile] = measured(
+                    command, log, adaptations, "Browser application counterpart"
+                )
                 if "tls_fixture" in record:
                     cells[name][profile]["tls_fixture"] = record["tls_fixture"]
     for abi in ("p2", "p3"):
@@ -226,8 +397,9 @@ def add_measurements(cells, evidence):
                     command = f"b2 toolset=clang-wasi{abi} "
                     command += "exception-handling=off " if off else ""
                     command += "libs/beast/test/applications/host-clients//" + name
-                    cell = measured(command, log, client_map["adaptations"],
-                                    "Host HTTP payload counterpart")
+                    cell = measured(
+                        command, log, client_map["adaptations"], "Host HTTP payload counterpart"
+                    )
                     if name == "http-crawl":
                         cell["run"] = "blocked"
                         cell["reason"] = (
@@ -249,8 +421,11 @@ def add_measurements(cells, evidence):
                         command = f"b2 toolset=clang-wasi{abi} exception-handling=off "
                         command += "libs/beast/test/applications/host//" + name
                         cells[name][f"wasi{abi}-host-http-eh-off"] = measured(
-                            command, log, ["Host listener and original file handler variant."],
-                            "Host HTTP handler counterpart")
+                            command,
+                            log,
+                            ["Host listener and original file handler variant."],
+                            "Host HTTP handler counterpart",
+                        )
         for filename in (f"applications-stdio-{abi}.log", f"applications-stdio-{abi}-noeh.log"):
             log = evidence / filename
             if not log.exists():
@@ -267,12 +442,19 @@ def add_measurements(cells, evidence):
                     command = f"b2 toolset=clang-wasi{abi} "
                     command += "exception-handling=off " if off else ""
                     command += "libs/beast/test/applications/streams//" + name
-                    cells[name][profile] = measured(command, log,
-                        ["Original Unix transport replaced by supplied bidirectional stdio.",
-                         ("P2 pollables preserve asynchronous partial operations." if
-                          abi == "p2" and name.startswith("websocket-") else
-                          "Explicit synchronous partial operations replace callbacks.")],
-                        "Supplied-stream application counterpart")
+                    cells[name][profile] = measured(
+                        command,
+                        log,
+                        [
+                            "Original Unix transport replaced by supplied bidirectional stdio.",
+                            (
+                                "P2 pollables preserve asynchronous partial operations."
+                                if abi == "p2" and name.startswith("websocket-")
+                                else "Explicit synchronous partial operations replace callbacks."
+                            ),
+                        ],
+                        "Supplied-stream application counterpart",
+                    )
     log = evidence / "host-extra-green.log"
     if log.exists():
         mapping = json.loads((examples / "host-extra/mapping.json").read_text())
@@ -283,14 +465,19 @@ def add_measurements(cells, evidence):
                 raise ValueError(f"Unmapped host-extra application {name}")
             abi = record["backend"].removeprefix("wasi-http-")
             for off in (False, True):
-                if not any(f"/{name}.test/" in path and f"-wasi{abi}/" in path and
-                           ("/exception-handling-off/" in path) == off for path in passed):
+                if not any(
+                    f"/{name}.test/" in path
+                    and f"-wasi{abi}/" in path
+                    and ("/exception-handling-off/" in path) == off
+                    for path in passed
+                ):
                     continue
                 command = f"b2 toolset=clang-wasi{abi} "
                 command += "exception-handling=off " if off else ""
                 command += "libs/beast/test/applications/host-extra//" + name
-                cell = measured(command, log, mapping["adaptations"],
-                                "Host HTTP handler counterpart")
+                cell = measured(
+                    command, log, mapping["adaptations"], "Host HTTP handler counterpart"
+                )
                 if name == "doc-ssl-server":
                     cell["tls_validation"] = "host frontend mutual TLS measured"
                     cell["scope"] += "; host authenticates before invoking the guest handler"
@@ -304,23 +491,38 @@ def add_host_crawl(cells, evidence, mapping):
     if not log.exists():
         return
     for record in observations(log):
-        expected = {"Timer": "0", "Resolve": "0", "Connect": "0", "Write": "0",
-                    "Read": "1", "Success": "5"}
+        expected = {
+            "Timer": "0",
+            "Resolve": "0",
+            "Connect": "0",
+            "Write": "0",
+            "Read": "1",
+            "Success": "5",
+        }
         requests = record.get("requests", [])
         destinations = {(item["authority"], item["target"]) for item in requests}
         authorities = {item["authority"] for item in requests}
-        if (record.get("result") != "passed" or record.get("counters") != expected or
-                record.get("maximum_active_requests") != 2 or
-                record.get("statuses") != {"200": "2", "201": "1", "404": "1", "503": "1"} or
-                len(requests) != 6 or len(destinations) != 6 or len(authorities) != 2 or
-                not record.get("bounded_input_rejected")):
+        if (
+            record.get("result") != "passed"
+            or record.get("counters") != expected
+            or record.get("maximum_active_requests") != 2
+            or record.get("statuses") != {"200": "2", "201": "1", "404": "1", "503": "1"}
+            or len(requests) != 6
+            or len(destinations) != 6
+            or len(authorities) != 2
+            or not record.get("bounded_input_rejected")
+        ):
             raise ValueError("Missing bounded host crawler workflow evidence")
         abi = record["backend"].removeprefix("host-http-")
         exceptions = record["exceptions"]
         command = f"b2 toolset=clang-wasi{abi} exception-handling={exceptions} "
         command += "libs/beast/test/applications/host-clients//http-crawl"
-        cell = measured(command, log, mapping["adaptations"],
-                        "Two-worker host crawler with distinct targets and aggregate report")
+        cell = measured(
+            command,
+            log,
+            mapping["adaptations"],
+            "Two-worker host crawler with distinct targets and aggregate report",
+        )
         cell["observed_report"] = record
         cells["http-crawl"][f"wasi{abi}-host-http-eh-{exceptions}"] = cell
 
@@ -352,12 +554,21 @@ def add_host_tls(cells, evidence, mapping):
         command += "libs/beast/test/applications/host-tls//tls-" + name
         profile = f"wasi{abi}-host-http-eh-{exceptions}"
         if record["threading"] == "cooperative":
-            cells[name][profile].setdefault("additional_measurements", []).append({
-                "configuration": "cooperative", "command": command,
-                "evidence": record["evidence"], "cases": record["cases"]})
+            cells[name][profile].setdefault("additional_measurements", []).append(
+                {
+                    "configuration": "cooperative",
+                    "command": command,
+                    "evidence": record["evidence"],
+                    "cases": record["cases"],
+                }
+            )
             continue
-        cell = measured(command, log, mapping["adaptations"],
-                        "HTTPS application counterpart with configured host trust")
+        cell = measured(
+            command,
+            log,
+            mapping["adaptations"],
+            "HTTPS application counterpart with configured host trust",
+        )
         cell["tls_validation"] = record["tls_verification"]
         cell["tls_cases"] = record["cases"]
         cell["mutual_tls"] = record["mutual_tls"]
@@ -367,97 +578,136 @@ def add_host_tls(cells, evidence, mapping):
 
 
 def write_document(matrix, destination):
-    lines = ["// Copyright (c) 2026 WebCpp.org\n//\n",
-             "// Distributed under the Boost Software License, Version 1.0. (See\n",
-             "// accompanying file LICENSE_1_0.txt or copy at\n",
-             "// https://www.boost.org/LICENSE_1_0.txt)\n//\n",
-             "// Generated by test/applications/matrix.py. Do not edit.\n\n",
-             "[[application-profile-matrix]]\n=== Application profile evidence\n\n",
-             "All 53 upstream executables remain in every profile. Each cell gives the ",
-             "compile/run result independently. P = measured pass, F = measured failure, ",
-             "B = blocked, U = unavailable, N = no measured result.\n\n",
-             "A passing counterpart preserves the measured application operations. It does ",
-             "not establish unchanged source, scheduling, DNS, TLS policy or failure semantics. ",
-             "Native oracle comparison covers payloads/status/modes, excluding fixture addresses ",
-             "and elapsed time. Local native measurements use macOS ARM64; other operating ",
-             "systems require their CI runs. Raw results and commands are retained by the ",
-             "drivers.\n\n",
-             "[cols=\"1,5\",options=\"header\"]\n|===\n|Profile |Configuration\n"]
+    lines = [
+        "// Copyright (c) 2026 WebCpp.org\n//\n",
+        "// Distributed under the Boost Software License, Version 1.0. (See\n",
+        "// accompanying file LICENSE_1_0.txt or copy at\n",
+        "// https://www.boost.org/LICENSE_1_0.txt)\n//\n",
+        "// Generated by test/applications/matrix.py. Do not edit.\n\n",
+        "[[application-profile-matrix]]\n=== Application profile evidence\n\n",
+        "All 53 upstream executables remain in every profile. Each cell gives the ",
+        "compile/run result independently. P = measured pass, F = measured failure, ",
+        "B = blocked, U = unavailable, N = no measured result.\n\n",
+        "A passing counterpart preserves the measured application operations. It does ",
+        "not establish unchanged source, scheduling, DNS, TLS policy or failure semantics. ",
+        "Native oracle comparison covers payloads/status/modes, excluding fixture addresses ",
+        "and elapsed time. Local native measurements use macOS ARM64; other operating ",
+        "systems require their CI runs. Raw results and commands are retained by the ",
+        "drivers.\n\n",
+        '[cols="1,5",options="header"]\n|===\n|Profile |Configuration\n',
+    ]
     for index, profile in enumerate(PROFILES, 1):
         lines.append(f"|P{index:02} |`{profile}`\n")
     lines.append("|===\n\n")
-    codes = {"passed": "P", "failed": "F", "blocked": "B",
-             "platform-unavailable": "U", "planned": "N"}
+    codes = {
+        "passed": "P",
+        "failed": "F",
+        "blocked": "B",
+        "platform-unavailable": "U",
+        "planned": "N",
+    }
     # Separate groups keep the generated matrix readable while retaining every profile/row.
     for begin in range(0, len(PROFILES), 6):
-        profiles = PROFILES[begin:begin + 6]
-        lines.append('[cols="4,' + ','.join('1' for _ in profiles) +
-                     '",options="header"]\n|===\n|Application ')
-        lines.append(' '.join(f"|P{index + 1:02} C/R" for index in
-                              range(begin, begin + len(profiles))) + "\n")
+        profiles = PROFILES[begin : begin + 6]
+        lines.append(
+            '[cols="4,'
+            + ",".join("1" for _ in profiles)
+            + '",options="header"]\n|===\n|Application '
+        )
+        lines.append(
+            " ".join(f"|P{index + 1:02} C/R" for index in range(begin, begin + len(profiles)))
+            + "\n"
+        )
         for name, cells in matrix["applications"].items():
-            lines.append("|`" + name + "` " + " ".join(
-                "|" + codes[cells[profile]["compile"]] + "/" + codes[cells[profile]["run"]]
-                for profile in profiles) + "\n")
+            lines.append(
+                "|`"
+                + name
+                + "` "
+                + " ".join(
+                    "|" + codes[cells[profile]["compile"]] + "/" + codes[cells[profile]["run"]]
+                    for profile in profiles
+                )
+                + "\n"
+            )
         lines.append("|===\n\n")
-    lines += ["==== Adaptations and limits\n\n",
-              "* WASIp3 uses a fixture resolver posting the known local endpoint. DNS worker ",
-              "threads remain unverified. Worker/system executors use an explicit event loop.\n",
-              "* Host HTTP preserves file handlers or request/body operations. Host listeners, ",
-              "framing and TLS are distinct from guest sockets. Six HTTPS client counterparts "
-              "run through a configured Wasmtime host with an isolated CA, rejecting unknown "
-              "issuers and trusted certificates for the wrong hostname. The documentation "
-              "client additionally measures host-owned mutual TLS and missing-identity "
-              "rejection. The documentation server measures a host mutual-TLS frontend.\n",
-              "* The host crawler retains upstream report aggregation and two asynchronous "
-              "workers over bounded authority/path inputs. Its fixture uses two peers, six "
-              "paths, four response statuses, and a truncated-response failure followed by "
-              "continued work. Host HTTP combines transport phases: failures count as Read; "
-              "separate DNS/connect/write/timer phase counts are unmeasured.\n",
-              "* Supplied streams replace Unix-domain addressing with caller-provided stdio. ",
-              "P2 WebSocket counterparts retain asynchronous partial operations "
-              "through Asio pollables; "
-              "the other supplied counterparts use synchronous partial operations.\n",
-              "* Browser fetch/WebSocket own DNS, framing and TLS. Guest CA lists, protocol ",
-              "pinning and handshake User-Agent are removed explicitly. HTTPS fixtures install "
-              "an ephemeral CA in an isolated Chrome profile. A fresh untrusted profile rejects "
-              "the certificate; the trusted profile rejects its incorrect IP hostname. No "
-              "certificate-error bypass or system trust-store modification is used.\n",
-              "* Exception-off counterparts retain error-code paths and successful operations; ",
-              "formerly throwing paths report failure and abort. Stackful Context remains "
-              "blocked.\n",
-              "* Asio P2 provides sockets and guest TLS, but the Beast guest-socket and "
-              "guest-TLS application corpus still needs P2 integration and validation. "
-              "Browser listeners and WASI Unix-domain socket addressing remain unavailable. ",
-              "WASIp3 cooperative EH-on lacks the toolchain exception runtime.\n\n",
-              "==== Reproduction\n\n[source,bash]\n----\n",
-              "python3 libs/beast/test/applications/inventory.py --check\n",
-              "python3 libs/beast/example/applications/tools/prepare.py --clang-format "
-              "clang-format\n",
-              "b2 libs/beast/test/applications//applications\n",
-              "b2 toolset=clang-wasip3 libs/beast/test/applications/wasip3//applications-p3\n",
-              "b2 toolset=emscripten libs/beast/test/applications/browser//applications-browser\n",
-              "b2 toolset=clang-wasip2 libs/beast/test/applications/host//applications-host\n",
-              "b2 toolset=clang-wasip2 "
-              "libs/beast/test/applications/host-clients//applications-host-clients\n",
-              "cargo build --locked --manifest-path "
-              "libs/beast/test/applications/host-tls/Cargo.toml --target-dir .local/host-tls\n",
-              "export PATH=\"$PWD/.local/host-tls/debug:$PATH\"\n",
-              "b2 toolset=clang-wasip2 "
-              "libs/beast/test/applications/host-tls//applications-host-tls\n",
-              "b2 libs/beast/test/applications/noexcept//applications-noexcept\n",
-              "b2 toolset=clang-wasip3 "
-              "libs/beast/test/applications/noexcept//applications-single-noexcept\n",
-              "b2 toolset=emscripten "
-              "libs/beast/test/applications/browser-noexcept//applications-browser\n",
-              "b2 toolset=clang-wasip3 "
-              "libs/beast/test/applications/streams//applications-streams\n",
-              "b2 toolset=clang-wasip3 "
-              "libs/beast/test/applications/streams//applications-websocket-streams\n",
-              "b2 libs/beast/test/applications/chat//applications-chat\n----\n\n",
-              "Configure pinned toolchains with the standard B2 user configuration. Clear ",
-              "CPATH/C_INCLUDE_PATH/CPLUS_INCLUDE_PATH. Runtime peers bind loopback ports, ",
-              "wait for readiness, enforce deadlines, and reap every process.\n"]
+    lines += [
+        "==== Adaptations and limits\n\n",
+        (
+            "* WASIp2/P3 socket counterparts use a fixture resolver posting the known local"
+            " endpoint. DNS worker "
+        ),
+        "threads remain unverified. Worker/system executors use an explicit event loop.\n",
+        "* Host HTTP preserves file handlers or request/body operations. Host listeners, ",
+        (
+            "framing and TLS are distinct from guest sockets. Six HTTPS client counterparts "
+            "run through a configured Wasmtime host with an isolated CA, rejecting unknown "
+            "issuers and trusted certificates for the wrong hostname. The documentation "
+            "client additionally measures host-owned mutual TLS and missing-identity "
+            "rejection. The documentation server measures a host mutual-TLS frontend.\n"
+        ),
+        (
+            "* The host crawler retains upstream report aggregation and two asynchronous "
+            "workers over bounded authority/path inputs. Its fixture uses two peers, six "
+            "paths, four response statuses, and a truncated-response failure followed by "
+            "continued work. Host HTTP combines transport phases: failures count as Read; "
+            "separate DNS/connect/write/timer phase counts are unmeasured.\n"
+        ),
+        "* Supplied streams replace Unix-domain addressing with caller-provided stdio. ",
+        (
+            "P2 WebSocket counterparts retain asynchronous partial operations "
+            "through Asio pollables; "
+            "the other supplied counterparts use synchronous partial operations.\n"
+        ),
+        "* Browser fetch/WebSocket own DNS, framing and TLS. Guest CA lists, protocol ",
+        (
+            "pinning and handshake User-Agent are removed explicitly. HTTPS fixtures install "
+            "an ephemeral CA in an isolated Chrome profile. A fresh untrusted profile rejects "
+            "the certificate; the trusted profile rejects its incorrect IP hostname. No "
+            "certificate-error bypass or system trust-store modification is used.\n"
+        ),
+        "* Exception-off counterparts retain error-code paths and successful operations; ",
+        "formerly throwing paths report failure and abort. Stackful Context remains blocked.\n",
+        (
+            "* P2 socket and guest-TLS cells require their own measured application results. "
+            "Browser listeners and WASI Unix-domain socket addressing remain unavailable. "
+        ),
+        "WASIp3 cooperative EH-on lacks the toolchain exception runtime.\n\n",
+        "==== Reproduction\n\n[source,bash]\n----\n",
+        "python3 libs/beast/test/applications/inventory.py --check\n",
+        "python3 libs/beast/example/applications/tools/prepare.py --clang-format clang-format\n",
+        "b2 libs/beast/test/applications//applications\n",
+        "b2 toolset=clang-wasip3 libs/beast/test/applications/wasip3//applications-p3\n",
+        "b2 toolset=emscripten libs/beast/test/applications/browser//applications-browser\n",
+        "b2 toolset=clang-wasip2 libs/beast/test/applications/host//applications-host\n",
+        (
+            "b2 toolset=clang-wasip2 "
+            "libs/beast/test/applications/host-clients//applications-host-clients\n"
+        ),
+        (
+            "cargo build --locked --manifest-path "
+            "libs/beast/test/applications/host-tls/Cargo.toml --target-dir .local/host-tls\n"
+        ),
+        'export PATH="$PWD/.local/host-tls/debug:$PATH"\n',
+        "b2 toolset=clang-wasip2 libs/beast/test/applications/host-tls//applications-host-tls\n",
+        "b2 libs/beast/test/applications/noexcept//applications-noexcept\n",
+        (
+            "b2 toolset=clang-wasip3 "
+            "libs/beast/test/applications/noexcept//applications-single-noexcept\n"
+        ),
+        (
+            "b2 toolset=emscripten "
+            "libs/beast/test/applications/browser-noexcept//applications-browser\n"
+        ),
+        "b2 toolset=clang-wasip3 libs/beast/test/applications/streams//applications-streams\n",
+        (
+            "b2 toolset=clang-wasip3 "
+            "libs/beast/test/applications/streams//applications-websocket-streams\n"
+        ),
+        "b2 libs/beast/test/applications/chat//applications-chat\n----\n\n",
+        "Configure pinned toolchains with the standard B2 user configuration. Clear ",
+        "CPATH/C_INCLUDE_PATH/CPLUS_INCLUDE_PATH. Runtime peers bind loopback ports, ",
+        "wait for readiness, enforce deadlines, and reap every process.\n",
+    ]
     destination.write_text("".join(lines))
 
 
@@ -472,12 +722,19 @@ def main():
     args.output.write_text(json.dumps(matrix, indent=2) + "\n")
     if args.document:
         write_document(matrix, args.document)
-    missing = [(name, profile) for name, profiles in matrix["applications"].items()
-               for profile in args.require if not inventory.application_passed(profiles[profile])]
+    missing = [
+        (name, profile)
+        for name, profiles in matrix["applications"].items()
+        for profile in args.require
+        if not inventory.application_passed(profiles[profile])
+    ]
     if missing:
         raise SystemExit("Missing passing evidence: " + ", ".join(f"{a}/{p}" for a, p in missing))
-    passed = sum(inventory.application_passed(cell)
-                 for profiles in matrix["applications"].values() for cell in profiles.values())
+    passed = sum(
+        inventory.application_passed(cell)
+        for profiles in matrix["applications"].values()
+        for cell in profiles.values()
+    )
     print(f"53 upstream applications, {len(PROFILES)} profiles, {passed} measured passing cells")
 
 

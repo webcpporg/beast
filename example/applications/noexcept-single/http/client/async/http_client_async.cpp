@@ -31,18 +31,18 @@
 //
 //------------------------------------------------------------------------------
 
-#include <boost/asio/strand.hpp>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast/core.hpp>
 
 namespace beast = webcpp::beast;    // from <webcpp/beast.hpp>
 namespace http = beast::http;       // from <webcpp/beast/http.hpp>
-namespace net = boost::asio;        // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 

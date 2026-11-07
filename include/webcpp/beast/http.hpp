@@ -9,70 +9,71 @@
 
 #include <webcpp/beast/config.hpp>
 
-#include <boost/beast/http/buffer_body.hpp>   // lint-world: caller-owned memory buffers only
-#include <boost/beast/http/dynamic_body.hpp>  // lint-world: memory buffers only
-#include <boost/beast/http/empty_body.hpp>    // lint-world: a body without a payload
-#include <boost/beast/http/file_body.hpp>     // lint-world: explicit file-backed HTTP bodies
-#include <boost/beast/http/message.hpp>       // lint-world: HTTP message data only
-#include <boost/beast/http/parser.hpp>        // lint-world: parses caller-supplied bytes only
-#include <boost/beast/http/serializer.hpp>    // lint-world: serializes into caller-owned buffers
-#include <boost/beast/http/string_body.hpp>   // lint-world: memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(http/buffer_body.hpp)  // lint-world: caller-owned memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(http/dynamic_body.hpp)  // lint-world: memory buffers only
+#include WEBCPP_BEAST_BACKEND_HEADER(http/empty_body.hpp)    // lint-world: a body without a payload
+#include WEBCPP_BEAST_BACKEND_HEADER(http/file_body.hpp)  // lint-world: explicit file-backed HTTP bodies
+#include WEBCPP_BEAST_BACKEND_HEADER(http/message.hpp)  // lint-world: HTTP message data only
+#include WEBCPP_BEAST_BACKEND_HEADER(http/parser.hpp)  // lint-world: parses caller-supplied bytes only
+#include WEBCPP_BEAST_BACKEND_HEADER(http/serializer.hpp)  // lint-world: serializes into caller-owned buffers
+#include WEBCPP_BEAST_BACKEND_HEADER(http/string_body.hpp)  // lint-world: memory buffers only
 
 namespace webcpp::beast::http {
+using namespace ::webcpp::beast_backend::http;
 /** Upstream body backed by a selected dynamic buffer type. */
-using boost::beast::http::basic_dynamic_body;
+using ::webcpp::beast_backend::http::basic_dynamic_body;
 /** Upstream HTTP fields with an application-supplied allocator. */
-using boost::beast::http::basic_fields;
+using ::webcpp::beast_backend::http::basic_fields;
 /** Upstream string body with an application-supplied allocator. */
-using boost::beast::http::basic_string_body;
+using ::webcpp::beast_backend::http::basic_string_body;
 /** Upstream body that reads or writes caller-owned buffers. */
-using boost::beast::http::buffer_body;
+using ::webcpp::beast_backend::http::buffer_body;
 /** Upstream dynamically buffered body. */
-using boost::beast::http::dynamic_body;
+using ::webcpp::beast_backend::http::dynamic_body;
 /** Upstream body for messages without a payload. */
-using boost::beast::http::empty_body;
+using ::webcpp::beast_backend::http::empty_body;
 /** Upstream HTTP parser and serializer errors. */
-using boost::beast::http::error;
+using ::webcpp::beast_backend::http::error;
 /** Upstream HTTP field names. */
-using boost::beast::http::field;
+using ::webcpp::beast_backend::http::field;
 /** Upstream HTTP fields. */
-using boost::beast::http::fields;
+using ::webcpp::beast_backend::http::fields;
 /** Upstream file-backed message body. */
-using boost::beast::http::file_body;
+using ::webcpp::beast_backend::http::file_body;
 /** Upstream request or response header. */
-using boost::beast::http::header;
+using ::webcpp::beast_backend::http::header;
 /** Upstream HTTP request or response message. */
-using boost::beast::http::message;
+using ::webcpp::beast_backend::http::message;
 /** Returns the conventional reason phrase for a status code. */
-using boost::beast::http::obsolete_reason;
+using ::webcpp::beast_backend::http::obsolete_reason;
 /** Upstream incremental message parser. */
-using boost::beast::http::parser;
+using ::webcpp::beast_backend::http::parser;
 /** Upstream HTTP request. */
-using boost::beast::http::request;
+using ::webcpp::beast_backend::http::request;
 /** Upstream HTTP request header. */
-using boost::beast::http::request_header;
+using ::webcpp::beast_backend::http::request_header;
 /** Upstream incremental request parser. */
-using boost::beast::http::request_parser;
+using ::webcpp::beast_backend::http::request_parser;
 /** Upstream incremental request serializer. */
-using boost::beast::http::request_serializer;
+using ::webcpp::beast_backend::http::request_serializer;
 /** Upstream HTTP response. */
-using boost::beast::http::response;
+using ::webcpp::beast_backend::http::response;
 /** Upstream HTTP response header. */
-using boost::beast::http::response_header;
+using ::webcpp::beast_backend::http::response_header;
 /** Upstream incremental response parser. */
-using boost::beast::http::response_parser;
+using ::webcpp::beast_backend::http::response_parser;
 /** Upstream incremental response serializer. */
-using boost::beast::http::response_serializer;
+using ::webcpp::beast_backend::http::response_serializer;
 /** Upstream incremental message serializer. */
-using boost::beast::http::serializer;
+using ::webcpp::beast_backend::http::serializer;
 /** Upstream HTTP status codes. */
-using boost::beast::http::status;
+using ::webcpp::beast_backend::http::status;
 /** Upstream string message body. */
-using boost::beast::http::string_body;
+using ::webcpp::beast_backend::http::string_body;
 /** Parses a method name while preserving upstream method semantics. */
-using boost::beast::http::string_to_verb;
+using ::webcpp::beast_backend::http::string_to_verb;
 /** Upstream HTTP methods. */
-using boost::beast::http::verb;
+using ::webcpp::beast_backend::http::verb;
 }  // namespace webcpp::beast::http
 
 #endif

@@ -48,7 +48,9 @@ inline int webcpp_beast_send(emscripten::EM_VAL handle, const void* data, std::s
     const socket = Emval.toValue(handle);
     if (socket.readyState !== WebSocket.OPEN) return 1;
     try {
-        const bytes = HEAPU8.subarray(data, data + size);
+        const view = HEAPU8.subarray(data, data + size);
+        // WebSocket.send and TextDecoder require non-shared BufferSource data.
+        const bytes = view.buffer instanceof ArrayBuffer ? view : view.slice();
         socket.send(text ? new TextDecoder().decode(bytes) : bytes);
         return 0;
     } catch (_) { return 1; }
@@ -83,7 +85,12 @@ inline void webcpp_beast_copy(emscripten::EM_VAL value, void* data, std::size_t 
     const source = Emval.toValue(value);
     // Take the Wasm view after C++ has prepared storage and may have grown memory.
     const destination = HEAPU8.subarray(data, data + size);
-    if (typeof source === 'string') new TextEncoder().encodeInto(source, destination);
+    if (typeof source === 'string') {
+        const encoder = new TextEncoder();
+        // encodeInto rejects SharedArrayBuffer-backed views in threaded builds.
+        if (destination.buffer instanceof ArrayBuffer) encoder.encodeInto(source, destination);
+        else destination.set(encoder.encode(source));
+    }
     else destination.set(new Uint8Array(source));
     }, value, data, size);
 }

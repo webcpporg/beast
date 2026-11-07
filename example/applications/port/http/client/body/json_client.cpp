@@ -22,8 +22,8 @@
 
 namespace beast = webcpp::beast;  // from <webcpp/beast.hpp>
 namespace http = beast::http;     // from <webcpp/beast/http.hpp>
-// from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+// from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 int main(int /*unused*/, char** /*unused*/) {
     // Our test endpoint for testing the json

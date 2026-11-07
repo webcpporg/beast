@@ -28,20 +28,19 @@
 #ifndef BOOST_BEAST_EXAMPLE_WEBSOCKET_CHAT_MULTI_NET_HPP
 #define BOOST_BEAST_EXAMPLE_WEBSOCKET_CHAT_MULTI_NET_HPP
 
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/buffers_iterator.hpp>
-#include <boost/asio/cancel_after.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/consign.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/strand.hpp>
-#include <webcpp/asio.hpp>
+#include <webcpp/asio/as_tuple.hpp>
+#include <webcpp/asio/awaitable.hpp>
+#include <webcpp/asio/bind_cancellation_slot.hpp>
+#include <webcpp/asio/bind_executor.hpp>
+#include <webcpp/asio/buffers_iterator.hpp>
+#include <webcpp/asio/cancel_after.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/consign.hpp>
+#include <webcpp/asio/detached.hpp>
+#include <webcpp/asio/dispatch.hpp>
+#include <webcpp/asio/strand.hpp>
 
-namespace net = boost::asio;        // from <boost/asio.hpp>
-using tcp = webcpp::asio::ip::tcp;  // from <boost/asio/ip/tcp.hpp>
+namespace net = webcpp::asio;       // from <webcpp/asio.hpp>
+using tcp = webcpp::asio::ip::tcp;  // from <webcpp/asio/ip/tcp.hpp>
 
 #endif

@@ -31,11 +31,11 @@
 //
 //------------------------------------------------------------------------------
 
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <boost/config.hpp>
+#include <webcpp/asio/awaitable.hpp>
+#include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/io_context.hpp>
+#include <webcpp/asio/ip/tcp.hpp>
 #include <webcpp/beast/core.hpp>
 
 #include <algorithm>
@@ -50,7 +50,7 @@
 
 namespace beast = webcpp::beast;
 namespace http = beast::http;
-namespace net = boost::asio;
+namespace net = webcpp::asio;
 
 // Return a reasonable mime type based on the extension of a file.
 namespace {

@@ -8,6 +8,7 @@
 
 import argparse
 import difflib
+import hashlib
 import json
 import re
 import subprocess
@@ -26,8 +27,10 @@ NOTICE = """// Copyright (c) 2026 WebCpp.org
 // Upstream authors and their original notice follow.
 
 """
-JAM_NOTICE = "\n".join("#" + line[2:] if line.startswith("//") else line
-                       for line in NOTICE.splitlines()) + "\n"
+JAM_NOTICE = (
+    "\n".join("#" + line[2:] if line.startswith("//") else line for line in NOTICE.splitlines())
+    + "\n"
+)
 
 
 def write_changed(path, text):
@@ -43,12 +46,16 @@ def normalize_comments(text):
         value = value.replace("@AsyncWriteStream", "`AsyncWriteStream`")
         value = value.replace("\\n", "\\\\n")
         return value
+
     return re.sub(r"/\*\*.*?\*/", comment, text, flags=re.S)
 
 
 def require_backend(text):
-    return re.sub(r"#else\s*int\s+main\([^)]*\)\s*\{[^{}]*\}",
-                  '#else\n#error "This application requires its declared Asio backend"', text)
+    return re.sub(
+        r"#else\s*int\s+main\([^)]*\)\s*\{[^{}]*\}",
+        '#else\n#error "This application requires its declared Asio backend"',
+        text,
+    )
 
 
 def adapt_fixture(path, text):
@@ -60,37 +67,49 @@ def adapt_fixture(path, text):
     text = require_backend(text)
     text = text.replace('"example/', '"')
     if path.name == "fields_alloc.hpp":
-        text = text.replace("static_pool&\n    share()",
-                            "static static_pool&\n    share(static_pool& pool)")
-        text = text.replace("++refs_;\n        return *this;",
-                            "++pool.refs_;\n        return pool;")
+        text = text.replace(
+            "static_pool&\n    share()", "static static_pool&\n    share(static_pool& pool)"
+        )
+        text = text.replace(
+            "++refs_;\n        return *this;", "++pool.refs_;\n        return pool;"
+        )
         text = text.replace("&other.pool_->share()", "&detail::static_pool::share(*other.pool_)")
     if path.name == "root_certificates.hpp":
         position = text.index("{", text.index("load_root_certificates(ssl::context& ctx,")) + 1
-        text = text[:position] + """
+        text = (
+            text[:position]
+            + """
     if (auto const* path = std::getenv("WEBCPP_BEAST_FIXTURE_CA")) {
         ctx.load_verify_file(path, ec);
         return;
     }
-""" + text[position:]
+"""
+            + text[position:]
+        )
     if path.name == "server_certificate.hpp":
         position = text.index("{", text.index("load_server_certificate(")) + 1
-        text = text[:position] + """
+        text = (
+            text[:position]
+            + """
     if (auto const* path = std::getenv("WEBCPP_BEAST_FIXTURE_CERT")) {
         ctx.use_certificate_chain_file(path);
         ctx.use_private_key_file(std::getenv("WEBCPP_BEAST_FIXTURE_KEY"),
                                  boost::asio::ssl::context::pem);
         return;
     }
-""" + text[position:]
+"""
+            + text[position:]
+        )
     if path.name == "json_client.cpp":
-        text = text.replace('"postman-echo.com"', 'webcpp_fixture::host()')
-        text = text.replace('resolver.resolve(host, "80")',
-                            'resolver.resolve(host, webcpp_fixture::port())')
+        text = text.replace('"postman-echo.com"', "webcpp_fixture::host()")
+        text = text.replace(
+            'resolver.resolve(host, "80")', "resolver.resolve(host, webcpp_fixture::port())"
+        )
     if path.name == "http_client_methods.cpp":
-        text = text.replace('"httpbin.cpp.al", "http"',
-                            'webcpp_fixture::host(), webcpp_fixture::port()')
-        text = text.replace('"httpbin.cpp.al"', 'webcpp_fixture::host()')
+        text = text.replace(
+            '"httpbin.cpp.al", "http"', "webcpp_fixture::host(), webcpp_fixture::port()"
+        )
+        text = text.replace('"httpbin.cpp.al"', "webcpp_fixture::host()")
     if path.name == "urls_large_data.cpp":
         text = """#include "urls_large_data.hpp"
 #include <vector>
@@ -100,14 +119,18 @@ std::vector<char const*> const& urls_large_data() {
 }
 """
     if path.name == "http_crawl.cpp":
-        text = text.replace('"http",', 'webcpp_fixture::port(),')
+        text = text.replace('"http",', "webcpp_fixture::port(),")
     if path.as_posix().startswith("doc/ssl/"):
-        text = text.replace('{}, 8080',
-                            'net::ip::make_address("127.0.0.1"), webcpp_fixture::port_number()')
-        text = text.replace('tcp::v4(), 8080', 'tcp::v4(), webcpp_fixture::port_number()')
+        text = text.replace(
+            "{}, 8080", 'net::ip::make_address("127.0.0.1"), webcpp_fixture::port_number()'
+        )
+        text = text.replace("tcp::v4(), 8080", "tcp::v4(), webcpp_fixture::port_number()")
     # The fixture helper is explicit in both the oracle and the port.
-    text = re.sub(r"([^\n]*\bioc\.run\([^\n]*)",
-                  r"\1 // lint-run: drives the application's network operations", text)
+    text = re.sub(
+        r"([^\n]*\bioc\.run\([^\n]*)",
+        r"\1 // lint-run: drives the application's network operations",
+        text,
+    )
     return NOTICE + '#include "fixture.hpp"\n' + text
 
 
@@ -155,63 +178,176 @@ def prepare(formatter):
             destination = APPLICATIONS / variant / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             if original.suffix in (".cpp", ".hpp"):
-                result = subprocess.run([formatter, f"--assume-filename={destination}"],
-                                        input=text, text=True, capture_output=True, check=True)
+                result = subprocess.run(
+                    [formatter, f"--assume-filename={destination}"],
+                    input=text,
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
                 text = result.stdout
             write_changed(destination, text)
             if variant == "port":
-                deltas.extend(difflib.unified_diff(before.splitlines(True), text.splitlines(True),
-                              fromfile=f"upstream/{relative}", tofile=f"port/{relative}"))
+                deltas.extend(
+                    difflib.unified_diff(
+                        before.splitlines(True),
+                        text.splitlines(True),
+                        fromfile=f"upstream/{relative}",
+                        tofile=f"port/{relative}",
+                    )
+                )
     write_changed(APPLICATIONS / "adaptations.patch", "".join(deltas))
     prepare_jam(manifest)
     prepare_host_handlers(manifest, formatter)
     import prepare_wasip3
+
     prepare_wasip3.generate(formatter)
     import prepare_browser
+
     prepare_browser.generate(formatter)
     import prepare_host_clients
+
     prepare_host_clients.generate(formatter)
     import prepare_noexcept
+
     prepare_noexcept.generate(formatter)
-    subprocess.run([sys.executable, str(APPLICATIONS / "streams/prepare.py"), formatter],
-                   check=True)
-    subprocess.run([sys.executable, str(APPLICATIONS / "host-extra/prepare.py"),
-                    "--clang-format", formatter], check=True)
+    subprocess.run(
+        [sys.executable, str(APPLICATIONS / "streams/prepare.py"), formatter], check=True
+    )
+    subprocess.run(
+        [sys.executable, str(APPLICATIONS / "host-extra/prepare.py"), "--clang-format", formatter],
+        check=True,
+    )
     import normalize
+
     normalize.apply()
+    migrate_selected_backends(formatter)
     print(f"Prepared {len(manifest['applications'])} oracle/port applications")
 
 
+def migrate_selected_backends(formatter):
+    """Apply the final explicit backend migration after existing fixture changes.
+
+    Oracle sources remain Boost. The hash mapping records precisely which
+    generated sources now consume the shipped implementation.
+    """
+    records = []
+    for directory in (
+        "port",
+        "wasip3",
+        "browser",
+        "host",
+        "host-clients",
+        "host-extra",
+        "streams",
+        "noexcept-native",
+        "noexcept-single",
+        "noexcept-browser",
+    ):
+        for path in sorted((APPLICATIONS / directory).rglob("*")):
+            if path.suffix not in (".cpp", ".hpp"):
+                continue
+            original = path.read_text()
+            text = original
+            for library in ("asio", "beast"):
+                text = text.replace(f"boost::{library}", f"webcpp::{library}")
+                text = text.replace(f"<boost/{library}/", f"<webcpp/{library}/")
+                text = text.replace(f"<boost/{library}.hpp>", f"<webcpp/{library}.hpp>")
+            # The version names the immutable protocol implementation, not an executor.
+            text = text.replace("<webcpp/beast/version.hpp>", "<boost/beast/version.hpp>")
+            # The fixture already adds this guarded umbrella. Migrating an
+            # original Boost umbrella must not introduce a second include.
+            umbrella = "#include <webcpp/asio.hpp>\n"
+            if text.count(umbrella) > 1:
+                before, after = text.split(umbrella, 1)
+                text = before + umbrella + after.replace(umbrella, "")
+            text = text.replace("defined(BOOST_ASIO_HAS_CO_AWAIT)", "WEBCPP_ASIO_HAS_CO_AWAIT")
+            text = text.replace(
+                "defined(BOOST_ASIO_HAS_LOCAL_SOCKETS)", "WEBCPP_ASIO_HAS_LOCAL_SOCKETS"
+            )
+            text = text.replace("BOOST_ASIO_HANDLER_TYPE", "WEBCPP_ASIO_HANDLER_TYPE")
+            text = subprocess.run(
+                [formatter, f"--assume-filename={path}"],
+                input=text,
+                text=True,
+                capture_output=True,
+                check=True,
+            ).stdout
+            write_changed(path, text)
+            records.append(
+                {
+                    "path": path.relative_to(APPLICATIONS).as_posix(),
+                    "before_sha256": hashlib.sha256(original.encode()).hexdigest(),
+                    "after_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                }
+            )
+    write_changed(
+        APPLICATIONS / "backend-migration.json",
+        json.dumps(
+            {
+                "description": (
+                    "Explicit namespace and include migration after fixture adaptations; oracle"
+                    " unchanged."
+                ),
+                "files": records,
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+
+
 def prepare_jam(manifest):
-    lines = [JAM_NOTICE,
-             "# Fixtures read the environment fixed by their launching driver.\n"
-             "project : requirements <toolset>msvc:<define>_CRT_SECURE_NO_WARNINGS ;\n\n",
-             "import webcpp ;\nwebcpp.targets native ;\n",
-             "webcpp.original python3 ;\n"]
+    lines = [
+        JAM_NOTICE,
+        (
+            "# Fixtures read the environment fixed by their launching driver.\n"
+            "project : requirements <toolset>msvc:<define>_CRT_SECURE_NO_WARNINGS ;\n\n"
+        ),
+        "import webcpp ;\nwebcpp.targets native ;\n",
+        "webcpp.original python3 ;\n",
+    ]
     targets = []
     for row in manifest["applications"]:
         for variant in ("oracle", "port"):
             target = f"{variant}-{row['id']}"
             targets.append(target)
-            sources = " ".join(f"../../example/applications/{variant}/{source}"
-                               for source in row["sources"])
+            sources = " ".join(
+                f"../../example/applications/{variant}/{source}" for source in row["sources"]
+            )
             requirement = "/webcpp/beast//tls" if row["tls"] else "/webcpp/beast//sockets"
             context = " <library>/webcpp//boost_context" if row["stackful"] else ""
-            lines.append(f"webcpp.drive {target} : {sources}\n"
-                         f"  : <library>{requirement}{context} <exception-handling>on\n"
-                         f"    <include>../../example/applications/{variant}\n"
-                         "    <include>../../example/applications <threading>multi\n"
-                         "    <define>BOOST_ASIO_HAS_CO_AWAIT=1\n"
-                         "    <define>BOOST_ASIO_HAS_STD_COROUTINE=1\n"
-                         f"  : driver.py : {row['id']} : native ;\n")
-    lines.append("webcpp.run documentation_snippets : documentation_snippets.cpp\n"
-                 "  : <library>/webcpp/beast//sockets <include>../../example/applications\n"
-                 "    <include>../../example/applications/port : native wasip3 ;\n")
-    lines.append("webcpp.run context_unwind : context_unwind.cpp\n"
-                 "  : <library>/webcpp//boost_context <exception-handling>on ;\n")
+            lines.append(
+                f"webcpp.drive {target} : {sources}\n"
+                f"  : <library>{requirement}{context} <exception-handling>on\n"
+                f"    <include>../../example/applications/{variant}\n"
+                "    <include>../../example/applications <threading>multi\n"
+                "    <define>BOOST_ASIO_HAS_CO_AWAIT=1\n"
+                "    <define>BOOST_ASIO_HAS_STD_COROUTINE=1\n"
+                f"  : driver.py : {row['id']} : native ;\n"
+            )
+    lines.append(
+        "webcpp.run documentation_snippets : documentation_snippets.cpp\n"
+        "  : <library>/webcpp/beast//sockets <include>../../example/applications\n"
+        "    <include>../../example/applications/port : native wasip3 ;\n"
+    )
+    lines.append(
+        "webcpp.run context_unwind : context_unwind.cpp\n"
+        "  : <library>/webcpp//boost_context <exception-handling>on ;\n"
+    )
     lines.append("webcpp.lane applications :\n  " + "\n  ".join(targets) + "\n  : native ;\n")
-    for project in ("host", "wasip3", "browser", "streams", "chat", "host-clients",
-                    "noexcept", "browser-noexcept", "host-extra", "host-tls"):
+    for project in (
+        "host",
+        "wasip3",
+        "browser",
+        "streams",
+        "chat",
+        "host-clients",
+        "noexcept",
+        "browser-noexcept",
+        "host-extra",
+        "host-tls",
+    ):
         lines.append(f"build-project {project} ;\n")
     write_changed(APPLICATIONS.parents[1] / "test/applications/Jamfile", "".join(lines))
 
@@ -237,10 +373,14 @@ def prepare_host_handlers(manifest, formatter):
         while depth:
             depth += (source[end] == "{") - (source[end] == "}")
             end += 1
-        body = source[start.start():end].replace("http::message_generator", "application_response")
+        body = source[start.start() : end].replace(
+            "http::message_generator", "application_response"
+        )
         # The host owns persistence. No physical connection fields are fabricated.
         body = body.replace("res.keep_alive(req.keep_alive());", "")
-        prefix = NOTICE + """#include <webcpp/beast/core.hpp>
+        prefix = (
+            NOTICE
+            + """#include <webcpp/beast/core.hpp>
 #include <webcpp/beast/wasi/http.hpp>
 #include <boost/beast/version.hpp>
 #include <string>
@@ -250,33 +390,57 @@ namespace http = beast::http;
 using application_response = std::variant<http::response<http::string_body>,
     http::response<http::empty_body>, http::response<http::file_body>>;
 """
-        text = prefix + body + """
+        )
+        text = (
+            prefix
+            + body
+            + """
 application_response handle(http::request<http::string_body> request) {
     return handle_request(".", std::move(request));
 }
 WEBCPP_BEAST_WASI_HTTP_EXPORT(handle)
 """
+        )
         destination = host / f"{row['id']}.cpp"
-        result = subprocess.run([formatter, f"--assume-filename={destination}"], input=text,
-                                text=True, capture_output=True, check=True)
+        result = subprocess.run(
+            [formatter, f"--assume-filename={destination}"],
+            input=text,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
         write_changed(destination, result.stdout)
         generated.append(row["id"])
-    (host / "mapping.json").write_text(json.dumps({
-        "applications": generated,
-        "adaptation": "Original mime_type, path_cat and handle_request; message_generator "
-                      "replaced by std::variant; host owns persistence and server entrypoint.",
-    }, indent=2) + "\n")
+    (host / "mapping.json").write_text(
+        json.dumps(
+            {
+                "applications": generated,
+                "adaptation": (
+                    "Original mime_type, path_cat and handle_request; message_generator "
+                    "replaced by std::variant; host owns persistence and server entrypoint."
+                ),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     project = APPLICATIONS.parents[1] / "test/applications/host"
     project.mkdir(exist_ok=True)
-    lines = [JAM_NOTICE, "import webcpp ;\nwebcpp.targets wasip2 wasip3 ;\n",
-             "webcpp.original python3 : .. ;\n"]
+    lines = [
+        JAM_NOTICE,
+        "import webcpp ;\nwebcpp.targets wasip2 wasip3 ;\n",
+        "webcpp.original python3 : .. ;\n",
+    ]
     for name in generated:
-        lines.append(f"webcpp.drive {name} : ../../../example/applications/host/{name}.cpp\n"
-                     "  : <library>/webcpp/beast//beast <library>/webcpp/wasi//host-http\n"
-                     "    <linkflags>-mexec-model=reactor\n"
-                     f"  : driver.py : {name} : wasip2 wasip3 ;\n")
-    lines.append("webcpp.lane applications-host :\n  " + "\n  ".join(generated) +
-                 "\n  : wasip2 wasip3 ;\n")
+        lines.append(
+            f"webcpp.drive {name} : ../../../example/applications/host/{name}.cpp\n"
+            "  : <library>/webcpp/beast//beast <library>/webcpp/wasi//host-http\n"
+            "    <linkflags>-mexec-model=reactor\n"
+            f"  : driver.py : {name} : wasip2 wasip3 ;\n"
+        )
+    lines.append(
+        "webcpp.lane applications-host :\n  " + "\n  ".join(generated) + "\n  : wasip2 wasip3 ;\n"
+    )
     write_changed(project / "Jamfile", "".join(lines))
 
 

@@ -7,6 +7,7 @@
 """The acceptance denominator comes from upstream, never successful builds."""
 
 import copy
+import hashlib
 import json
 import runpy
 import tempfile
@@ -19,6 +20,72 @@ MATRIX = runpy.run_path(str(Path(__file__).with_name("matrix.py")))
 
 
 class InventoryTest(unittest.TestCase):
+    def current_receipt(self, directory, observation):
+        path = directory / "beast-browser-jspi-on.log"
+        path.write_text(json.dumps(observation) + "\n")
+        source = hashlib.sha256(b"{}").hexdigest() + ".sources.json"
+        (directory / source).write_text("{}")
+        record = dict(
+            id="beast-browser-jspi-on",
+            status=0,
+            command=["b2", "threading=single"],
+            source_manifest=source,
+            log_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+        path.with_suffix(".json").write_text(json.dumps(record))
+        return path
+
+    def test_current_pass_does_not_infer_other_suspension(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.current_receipt(
+                directory,
+                dict(
+                    application="websocket-client-sync",
+                    backend="jspi",
+                    host="page",
+                    result="passed",
+                ),
+            )
+            cells = {"websocket-client-sync": {}}
+            MATRIX["add_current_measurements"](cells, directory)
+            self.assertEqual(
+                list(cells["websocket-client-sync"]), ["browser-jspi-single-eh-on-page"]
+            )
+
+    def test_browser_unknown_host_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.current_receipt(
+                directory,
+                dict(application="websocket-client-sync", backend="jspi", result="passed"),
+            )
+            with self.assertRaisesRegex(ValueError, "host/threading"):
+                MATRIX["add_current_measurements"]({"websocket-client-sync": {}}, directory)
+
+    def test_current_changed_log_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            path = self.current_receipt(directory, {})
+            path.write_text("{}\nchanged\n")
+            with self.assertRaisesRegex(ValueError, "Changed measured log"):
+                MATRIX["add_current_measurements"]({}, directory)
+
+    def test_current_browser_tls_requires_trust_controls(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.current_receipt(
+                directory,
+                dict(
+                    application="websocket-client-sync-ssl",
+                    backend="jspi",
+                    host="page",
+                    result="passed",
+                ),
+            )
+            with self.assertRaisesRegex(ValueError, "TLS trust controls"):
+                MATRIX["add_current_measurements"]({"websocket-client-sync-ssl": {}}, directory)
+
     def test_every_upstream_entrypoint_is_covered(self):
         manifest = inventory.load()
         inventory.validate(manifest)
@@ -48,10 +115,16 @@ class InventoryTest(unittest.TestCase):
             inventory.validate_result({"compile": "passed", "run": "passed"})
 
     def test_https_requires_all_trust_controls(self):
-        record = {"application": "http-client-sync-ssl", "threading": "single",
-                  "backend": "host-http-p2", "exceptions": "on", "cases": [],
-                  "tls_verification": "normal rustls", "mutual_tls": False,
-                  "runtime": "fixture"}
+        record = {
+            "application": "http-client-sync-ssl",
+            "threading": "single",
+            "backend": "host-http-p2",
+            "exceptions": "on",
+            "cases": [],
+            "tls_verification": "normal rustls",
+            "mutual_tls": False,
+            "runtime": "fixture",
+        }
         with tempfile.TemporaryDirectory() as temporary:
             evidence = Path(temporary)
             (evidence / "host-tls-results.json").write_text(json.dumps({"results": [record]}))
@@ -61,11 +134,19 @@ class InventoryTest(unittest.TestCase):
                 MATRIX["add_host_tls"](cells, evidence, mapping)
 
     def test_mutual_tls_requires_missing_identity_rejection(self):
-        record = {"application": "doc-ssl-client", "threading": "single",
-                  "backend": "host-http-p2", "exceptions": "on", "mutual_tls": True,
-                  "tls_verification": "normal rustls", "runtime": "fixture",
-                  "cases": [{"case": case, "result": "passed"} for case in
-                            ("trusted localhost", "UnknownIssuer", "NotValidForName")]}
+        record = {
+            "application": "doc-ssl-client",
+            "threading": "single",
+            "backend": "host-http-p2",
+            "exceptions": "on",
+            "mutual_tls": True,
+            "tls_verification": "normal rustls",
+            "runtime": "fixture",
+            "cases": [
+                {"case": case, "result": "passed"}
+                for case in ("trusted localhost", "UnknownIssuer", "NotValidForName")
+            ],
+        }
         with tempfile.TemporaryDirectory() as temporary:
             evidence = Path(temporary)
             (evidence / "host-tls-results.json").write_text(json.dumps({"results": [record]}))
@@ -83,22 +164,32 @@ class InventoryTest(unittest.TestCase):
                 MATRIX["add_host_crawl"]({"http-crawl": {}}, evidence, {"adaptations": []})
 
     def test_observed_startup_time_does_not_change_behavior(self):
-        record = {"application": "echo-op", "result": "passed", "command": ["oracle"],
-                  "exchanges": [{"echo": "payload"}], "startup_seconds": 0.02,
-                  "startup_budget_seconds": 5, "exchange_timeout_seconds": 5}
+        record = {
+            "application": "echo-op",
+            "result": "passed",
+            "command": ["oracle"],
+            "exchanges": [{"echo": "payload"}],
+            "startup_seconds": 0.02,
+            "startup_budget_seconds": 5,
+            "exchange_timeout_seconds": 5,
+        }
         with tempfile.TemporaryDirectory() as temporary:
             oracle, port = (Path(temporary) / name for name in ("oracle.log", "port.log"))
             oracle.write_text(json.dumps(record) + "\n")
             record.update(command=["port"], startup_seconds=0.03)
             port.write_text(json.dumps(record) + "\n")
             self.assertEqual(MATRIX["normalized_run"](oracle), MATRIX["normalized_run"](port))
-            for key, value in (("startup_budget_seconds", 15), ("exchange_timeout_seconds", 10),
-                               ("exchanges", [{"echo": "different payload"}])):
+            for key, value in (
+                ("startup_budget_seconds", 15),
+                ("exchange_timeout_seconds", 10),
+                ("exchanges", [{"echo": "different payload"}]),
+            ):
                 with self.subTest(key=key):
                     changed = {**record, key: value}
                     port.write_text(json.dumps(changed) + "\n")
-                    self.assertNotEqual(MATRIX["normalized_run"](oracle),
-                                        MATRIX["normalized_run"](port))
+                    self.assertNotEqual(
+                        MATRIX["normalized_run"](oracle), MATRIX["normalized_run"](port)
+                    )
 
 
 if __name__ == "__main__":

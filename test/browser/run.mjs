@@ -122,7 +122,9 @@ const startServer = async () => {
             if (!file.startsWith(root + sep)) { response.writeHead(404).end(); return }
             let content = readFileSync(file)
             if (path === '/page.html') content = Buffer.from(content.toString().replace('<script type="module">', `<script>globalThis.beastCorsPort = '${corsPort}'; globalThis.beastPeerPort = '${left.peer.plain}'; globalThis.beastSecurePort = '${left.peer.secure}'</script><script type="module">`))
-            response.writeHead(200, {'Content-Type': types[extname(file)] ?? 'application/octet-stream'}).end(content)
+            response.writeHead(200, {'Content-Type': types[extname(file)] ?? 'application/octet-stream',
+                'Cross-Origin-Opener-Policy': 'same-origin',
+                'Cross-Origin-Embedder-Policy': 'require-corp'}).end(content)
         } catch { response.writeHead(404).end() }
     }
     const server = createServer(serve)

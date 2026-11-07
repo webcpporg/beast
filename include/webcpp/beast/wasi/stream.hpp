@@ -10,8 +10,8 @@
 #include <webcpp/beast/config.hpp>
 #include <webcpp/beast/http.hpp>
 
-#include <boost/asio/buffer.hpp>               // lint-world: memory buffer sequences only
-#include <boost/beast/core/buffers_range.hpp>  // lint-world: memory buffer iteration only
+#include WEBCPP_ASIO_BACKEND_HEADER(buffer.hpp)  // lint-world: memory buffer sequences only
+#include WEBCPP_BEAST_BACKEND_HEADER(core/buffers_range.hpp)  // lint-world: memory buffer iteration only
 #include <boost/system/error_code.hpp>
 
 #ifndef _WIN32
@@ -107,7 +107,7 @@ public:
     @return The number of bytes transferred before completion or failure. */
     template <class MutableBuffers>
     std::size_t read_some(const MutableBuffers& buffers, boost::system::error_code& error) {
-        for (auto const buffer : boost::beast::buffers_range_ref(buffers)) {
+        for (auto const buffer : ::webcpp::beast_backend::buffers_range_ref(buffers)) {
             if (buffer.size() == 0) {
                 continue;
             }
@@ -145,7 +145,7 @@ public:
     @return The number of bytes transferred before completion or failure. */
     template <class ConstBuffers>
     std::size_t write_some(const ConstBuffers& buffers, boost::system::error_code& error) {
-        for (auto const buffer : boost::beast::buffers_range_ref(buffers)) {
+        for (auto const buffer : ::webcpp::beast_backend::buffers_range_ref(buffers)) {
             if (buffer.size() == 0) {
                 continue;
             }

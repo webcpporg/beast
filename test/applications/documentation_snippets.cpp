@@ -26,12 +26,12 @@ int main() {
     request.prepare_payload();
     boost::system::error_code error;
     std::ostringstream output;
-    boost::beast::http::write_ostream(output, request, error);
+    http::write_ostream(output, request, error);
     BOOST_TEST(!error);
     std::istringstream input(output.str());
     webcpp::beast::flat_buffer buffer;
     http::request<http::string_body> decoded;
-    boost::beast::http::read_istream(input, buffer, decoded, error);
+    http::read_istream(input, buffer, decoded, error);
     BOOST_TEST(!error);
     BOOST_TEST(decoded.method() == request.method());
     BOOST_TEST(decoded.target() == request.target());

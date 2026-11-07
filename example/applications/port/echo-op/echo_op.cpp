@@ -23,14 +23,13 @@
 // Official repository: https://github.com/boostorg/beast
 //
 
-#include <boost/asio.hpp>
 #include <cstddef>
 #include <iostream>
 #include <memory>
 #include <utility>
 #include <webcpp/beast/core.hpp>
 
-namespace net = boost::asio;
+namespace net = webcpp::asio;
 namespace beast = webcpp::beast;
 
 namespace {
@@ -114,7 +113,7 @@ class echo_op;
 // This example uses the Asio's stackless "fauxroutines", implemented
 // using a macro-based solution. It makes the code easier to write and
 // easier to read. This include file defines the necessary macros and types.
-#include <boost/asio/yield.hpp>
+#include <webcpp/asio/yield.hpp>
 
 // Read a line and echo it back
 //
@@ -140,10 +139,10 @@ auto async_echo(AsyncStream& stream, DynamicBuffer& buffer, CompletionToken&& to
 
     net::async_completion<CompletionToken, void(beast::error_code)> init(token);
 
-    // The helper macro BOOST_ASIO_HANDLER_TYPE converts the completion
+    // The helper macro WEBCPP_ASIO_HANDLER_TYPE converts the completion
     // token type into a concrete handler type of the correct signature.
 
-    using handler_type = BOOST_ASIO_HANDLER_TYPE(CompletionToken, void(beast::error_code));
+    using handler_type = WEBCPP_ASIO_HANDLER_TYPE(CompletionToken, void(beast::error_code));
 
     // The class template `async_base` holds the caller's completion
     // handler for us, and provides all of the boilerplate for forwarding
@@ -169,7 +168,7 @@ auto async_echo(AsyncStream& stream, DynamicBuffer& buffer, CompletionToken&& to
 
     // Asio operation state combines completion ownership with coroutine resume state.
     // NOLINTNEXTLINE(misc-multiple-inheritance)
-    struct echo_op : base_type, boost::asio::coroutine {
+    struct echo_op : base_type, webcpp::asio::coroutine {
         AsyncStream& stream_state;
         DynamicBuffer& buffer_state;
 
@@ -314,7 +313,7 @@ auto async_echo(AsyncStream& stream, DynamicBuffer& buffer, CompletionToken&& to
     };
 
     // Create the composed operation and launch it. This is a constructor
-    // call followed by invocation of operator(). We use BOOST_ASIO_HANDLER_TYPE
+    // call followed by invocation of operator(). We use WEBCPP_ASIO_HANDLER_TYPE
     // to convert the completion token into the correct handler type,
     // allowing user-defined specializations of the async_result template
     // to be used.
@@ -330,7 +329,7 @@ auto async_echo(AsyncStream& stream, DynamicBuffer& buffer, CompletionToken&& to
 }
 
 // Including this file undefines the macros used by the stackless fauxroutines.
-#include <boost/asio/unyield.hpp>
+#include <webcpp/asio/unyield.hpp>
 
 //]
 
@@ -358,7 +357,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    namespace net = boost::asio;
+    namespace net = webcpp::asio;
     auto const address = net::ip::make_address(argv[1]);
     auto const port = static_cast<unsigned short>(webcpp_fixture::integer(argv[2]));
 

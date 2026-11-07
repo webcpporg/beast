@@ -234,7 +234,7 @@ public:
      */
     template <class Token>
     auto async_handshake(webcpp::asio::ssl::stream_base::handshake_type type, Token&& token) {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(boost::system::error_code)>(
             [this, type](auto handler) {
                 boost::system::error_code ec;
                 handshake(type, ec);
@@ -268,7 +268,7 @@ public:
      */
     template <class Token>
     auto async_shutdown(Token&& token) {
-        return boost::asio::async_initiate<Token, void(boost::system::error_code)>(
+        return ::webcpp::asio_backend::async_initiate<Token, void(boost::system::error_code)>(
             [this](auto handler) {
                 boost::system::error_code ec;
                 shutdown(ec);
@@ -284,7 +284,7 @@ public:
      */
     boost::system::result<void> set_server_name(std::string_view host) {
         if (host.empty() || host.size() > 255 || host.find('\0') != std::string_view::npos) {
-            return boost::asio::error::invalid_argument;
+            return ::webcpp::asio_backend::error::invalid_argument;
         }
         server_name_ = host;
         return {};

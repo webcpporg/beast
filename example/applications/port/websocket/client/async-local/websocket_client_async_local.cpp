@@ -31,8 +31,8 @@
 //
 //------------------------------------------------------------------------------
 
-#include <boost/asio/local/stream_protocol.hpp>
-#include <boost/asio/strand.hpp>
+#include <webcpp/asio/local/stream_protocol.hpp>
+#include <webcpp/asio/strand.hpp>
 #include <webcpp/beast/core.hpp>
 
 #include <cstdlib>
@@ -45,8 +45,8 @@
 namespace beast = webcpp::beast;         // from <webcpp/beast.hpp>
 namespace http = beast::http;            // from <webcpp/beast/http.hpp>
 namespace websocket = beast::websocket;  // from <webcpp/beast/websocket.hpp>
-namespace net = boost::asio;             // from <boost/asio.hpp>
-using net::local::stream_protocol;       // from <boost/asio/local/stream_protocol.hpp>
+namespace net = webcpp::asio;            // from <webcpp/asio.hpp>
+using net::local::stream_protocol;       // from <webcpp/asio/local/stream_protocol.hpp>
 
 //------------------------------------------------------------------------------
 

@@ -2254,7 +2254,7 @@
 -        the one the child task runs on (e.g. via @c net::bind_executor). This is
 -        because @c emit() can run on a different thread than the task, and
 -        @c co_spawn dispatches the cancellation to the handler's associated
-+        ote `completion_token` must have an associated executor that matches
++        @note `completion_token` must have an associated executor that matches
 +        the one the child task runs on (e.g. via `net::bind_executor`). This is
 +        because `emit`() can run on a different thread than the task, and
 +        `co_spawn` dispatches the cancellation to the handler's associated
@@ -2473,11 +2473,13 @@
          auto [ec, _] = co_await ws.async_read(buffer, net::as_tuple);
  
 -        if(ec == websocket::error::closed || ec == ssl::error::stream_truncated)
-+        if (ec == websocket::error::closed || ec == ssl::error::stream_truncated)
-             co_return;
- 
+-            co_return;
+-
 -        if(ec)
 -            throw boost::system::system_error{ ec };
++        if (ec == websocket::error::closed || ec == ssl::error::stream_truncated)
++            co_return;
++
 +        if (ec)
 +            throw boost::system::system_error{ec};
  
@@ -2522,13 +2524,15 @@
 -            co_await http::async_read(stream, buffer, parser, net::as_tuple);
 -
 -        if(ec == http::error::end_of_stream)
+-            co_return;
+-
+-        if(websocket::is_upgrade(parser.get()))
+-        {
 +        auto [ec, _] = co_await http::async_read(stream, buffer, parser, net::as_tuple);
 +
 +        if (ec == http::error::end_of_stream)
-             co_return;
- 
--        if(websocket::is_upgrade(parser.get()))
--        {
++            co_return;
++
 +        if (websocket::is_upgrade(parser.get())) {
              // The websocket::stream uses its own timeout settings.
              beast::get_lowest_layer(stream).expires_never();
@@ -2608,9 +2612,8 @@
          co_await run_session(stream, buffer, doc_root);
  
 -        if(!stream.socket().is_open())
-+        if (!stream.socket().is_open())
-             co_return;
- 
+-            co_return;
+-
 -        stream.socket().shutdown(net::ip::tcp::socket::shutdown_send);
 -    }
 -}
@@ -2623,6 +2626,9 @@
 -    beast::string_view doc_root)
 -{
 -    auto cs       = co_await net::this_coro::cancellation_state;
++        if (!stream.socket().is_open())
++            co_return;
++
 +        stream.socket().shutdown(webcpp::asio::ip::tcp::socket::shutdown_send);
 +    }
 +}
@@ -2649,13 +2655,15 @@
 -            co_await acceptor.async_accept(socket_executor, net::as_tuple);
 -
 -        if(ec == net::error::operation_aborted)
+-            co_return;
+-
+-        if(ec)
+-            throw boost::system::system_error{ ec };
 +        auto [ec, socket] = co_await acceptor.async_accept(socket_executor, net::as_tuple);
 +
 +        if (ec == net::error::operation_aborted)
-             co_return;
- 
--        if(ec)
--            throw boost::system::system_error{ ec };
++            co_return;
++
 +        if (ec)
 +            throw boost::system::system_error{ec};
  
@@ -2723,7 +2731,7 @@
          {
              std::cout << "Sending a terminal cancellation signal...\n";
              task_group.emit(net::cancellation_type::terminal);
-@@ -586,80 +528,64 @@
+@@ -586,92 +528,70 @@
          }
  
          std::cout << "Child tasks completed.\n";
@@ -2835,17 +2843,19 @@
          t.join();
  
      return EXIT_SUCCESS;
-@@ -667,9 +593,7 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/common/root_certificates.hpp
 +++ port/common/root_certificates.hpp
 @@ -1,3 +1,20 @@
@@ -4626,7 +4636,7 @@
  
          // set up the peer verification mode so that the TLS/SSL handshake fails
          // if the certificate verification is unsuccessful
-@@ -117,19 +121,15 @@
+@@ -117,21 +121,13 @@
  
          net::co_spawn(ioc, request(ctx), print_exception);
  
@@ -4641,14 +4651,16 @@
  }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/doc/ssl/server.cpp
 +++ port/doc/ssl/server.cpp
 @@ -1,3 +1,20 @@
@@ -4783,7 +4795,7 @@
  
          // The client's certificate will be verified against this
          // certificate authority.
-@@ -113,19 +113,15 @@
+@@ -113,21 +113,13 @@
  
          net::co_spawn(ioc, acceptor(ctx), print_exception);
  
@@ -4798,14 +4810,16 @@
  }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/echo-op/echo_op.cpp
 +++ port/echo-op/echo_op.cpp
 @@ -1,3 +1,19 @@
@@ -5601,7 +5615,7 @@
          return EXIT_FAILURE;
      }
      auto const path = argv[1];
-@@ -162,26 +144,23 @@
+@@ -162,26 +144,19 @@
      int version = argc == 6 && !std::strcmp("1.0", argv[5]) ? 10 : 11;
  
      // The io_context is required for all I/O
@@ -5620,17 +5634,15 @@
  }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
 -std::cerr <<
 -    "Local sockets not available on this platform" << std::endl;
 -return EXIT_FAILURE;
-+int main(int, char*[]) {
-+    std::cerr << "Local sockets not available on this platform" << std::endl;
-+    return EXIT_FAILURE;
- }
+-}
++#error "This application requires its declared Asio backend"
  
  #endif
 --- upstream/http/client/async-ssl/http_client_async_ssl.cpp
@@ -6372,17 +6384,20 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -135,9 +141,7 @@
+@@ -134,12 +140,6 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/http/client/awaitable-ssl/http_client_awaitable_ssl.cpp
 +++ port/http/client/awaitable-ssl/http_client_awaitable_ssl.cpp
 @@ -1,3 +1,20 @@
@@ -6562,17 +6577,20 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -188,9 +187,7 @@
+@@ -187,12 +186,6 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/http/client/body/json_body.hpp
 +++ port/http/client/body/json_body.hpp
 @@ -1,3 +1,19 @@
@@ -19317,7 +19335,7 @@
              return EXIT_FAILURE;
          }
          auto const path = argv[1];
-@@ -410,32 +364,25 @@
+@@ -410,45 +364,31 @@
          auto const threads = std::max<int>(1, std::atoi(argv[3]));
  
          // The io_context is required for all I/O
@@ -19357,20 +19375,18 @@
          std::cerr << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -443,12 +390,9 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
 -std::cerr <<
 -    "Local sockets not available on this platform" << std::endl;
 -return EXIT_FAILURE;
-+int main(int, char*[]) {
-+    std::cerr << "Local sockets not available on this platform" << std::endl;
-+    return EXIT_FAILURE;
- }
+-}
++#error "This application requires its declared Asio backend"
  
  #endif
 --- upstream/http/server/async-ssl/http_server_async_ssl.cpp
@@ -20326,7 +20342,7 @@
  
      // At this point the connection is closed gracefully
      // we ignore the error because the client might have
-@@ -247,89 +258,68 @@
+@@ -247,91 +258,66 @@
  }
  
  // Accepts incoming connections and launches the sessions
@@ -20447,15 +20463,16 @@
  }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
---- upstream/http/server/coro/http_server_coro.cpp
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif--- upstream/http/server/coro/http_server_coro.cpp
 +++ port/http/server/coro/http_server_coro.cpp
 @@ -1,3 +1,19 @@
 +// Copyright (c) 2026 WebCpp.org
@@ -25812,7 +25829,7 @@
          return EXIT_FAILURE;
      }
      auto const path = argv[1];
-@@ -185,26 +155,23 @@
+@@ -185,26 +155,19 @@
      auto const text = argv[4];
  
      // The io_context is required for all I/O
@@ -25831,17 +25848,15 @@
  }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
 -std::cerr <<
 -    "Local sockets not available on this platform" << std::endl;
 -return EXIT_FAILURE;
-+int main(int, char*[]) {
-+    std::cerr << "Local sockets not available on this platform" << std::endl;
-+    return EXIT_FAILURE;
- }
+-}
++#error "This application requires its declared Asio backend"
  
  #endif
 --- upstream/websocket/client/async-ssl/websocket_client_async_ssl.cpp
@@ -26632,17 +26647,20 @@
          std::cerr << "Error: " << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -138,9 +137,7 @@
+@@ -137,12 +136,6 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/websocket/client/coro/websocket_client_coro.cpp
 +++ port/websocket/client/coro/websocket_client_coro.cpp
 @@ -1,3 +1,20 @@
@@ -27975,7 +27993,7 @@
  
          // Remove previous binding
          std::remove(path);
-@@ -244,18 +197,14 @@
+@@ -244,31 +197,20 @@
          // Run the I/O service on the requested number of threads
          std::vector<std::thread> v;
          v.reserve(threads - 1);
@@ -27999,20 +28017,20 @@
          std::cerr << e.what() << std::endl;
          return EXIT_FAILURE;
      }
-@@ -263,11 +212,8 @@
+ }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
 -    std::cerr <<
 -        "Local sockets not available on this platform" << std::endl;
-+int main(int, char*[]) {
-+    std::cerr << "Local sockets not available on this platform" << std::endl;
-     return EXIT_FAILURE;
- }
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
  
+ #endif
 --- upstream/websocket/server/async-ssl/websocket_server_async_ssl.cpp
 +++ port/websocket/server/async-ssl/websocket_server_async_ssl.cpp
 @@ -1,3 +1,21 @@
@@ -28533,7 +28551,7 @@
                          std::cerr << "Error in session: " << e.what() << "\n";
                      }
                  }
-@@ -105,59 +105,47 @@
+@@ -105,61 +105,45 @@
      }
  }
  
@@ -28607,14 +28625,16 @@
  }
  
  #else
- 
+-
 -int
 -main(int, char*[])
 -{
-+int main(int, char*[]) {
-     std::printf("awaitables require C++20\n");
-     return EXIT_FAILURE;
- }
+-    std::printf("awaitables require C++20\n");
+-    return EXIT_FAILURE;
+-}
++#error "This application requires its declared Asio backend"
+ 
+ #endif
 --- upstream/websocket/server/chat-multi/beast.hpp
 +++ port/websocket/server/chat-multi/beast.hpp
 @@ -1,3 +1,20 @@

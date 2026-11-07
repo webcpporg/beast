@@ -7,7 +7,17 @@
 #ifndef WEBCPP_BEAST_CONFIG_HPP
 #define WEBCPP_BEAST_CONFIG_HPP
 
+#include <webcpp/beast/detail/backend_select.hpp>
 #include <webcpp/config.hpp>
+
+#if defined(WEBCPP_BEAST_HAS_SOCKET_BACKEND) || defined(WEBCPP_BEAST_HAS_OPENSSL_BACKEND)
+#error "webcpp::beast: backend capabilities are derived by config.hpp, not user switches"
+#else
+/** 1 when the selected Asio backend supplies native or WASI guest sockets. */
+#define WEBCPP_BEAST_HAS_SOCKET_BACKEND WEBCPP_ASIO_HAS_SOCKET_BACKEND
+/** 1 when guest OpenSSL can be linked on the selected target; does not link it. */
+#define WEBCPP_BEAST_HAS_OPENSSL_BACKEND WEBCPP_ASIO_HAS_OPENSSL_BACKEND
+#endif
 
 #ifdef __MRDOCS__
 /**
