@@ -16,6 +16,7 @@ Changes to the unreleased Beast facade.
 // tag::unreleased[]
 * Fixed browser HTTP and WebSocket transfers with shared Wasm memory.
 * Added current application coverage and shared Release parser measurements.
+* Added a WebSocket client layer that bounds the handshake response it reads.
 // end::unreleased[]
 
 [#beast-changelog-0-1-0]

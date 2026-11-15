@@ -10,6 +10,7 @@
 #include <webcpp/beast/ssl.hpp>
 #include <webcpp/beast/tcp_stream.hpp>
 #include <webcpp/beast/websocket.hpp>
+#include <webcpp/beast/websocket/bounded_handshake_stream.hpp>
 
 #include <webcpp/asio/io_context.hpp>
 #include <webcpp/asio/ip/tcp.hpp>
@@ -406,6 +407,196 @@ public:
         BOOST_TEST(finished_);
     }
 };
+
+// A WebSocket client over TLS through the bounded handshake layer, as a relay client is: a refused
+// upgrade with a megabyte body fails at the bound, and an accepted one echoes and closes, its TLS
+// shut down through the layer.
+class bounded_exchange {
+    using client_stream =
+        ws::stream<ws::bounded_handshake_stream<beast::ssl_stream<beast::tcp_stream>>>;
+
+    bool refuse_;
+    webcpp::asio::io_context context_;
+    ssl::context server_context_;
+    ssl::context client_context_;
+    tcp::acceptor listener_{context_, {webcpp::asio::ip::address_v4::loopback(), 0}};
+    ws::stream<beast::ssl_stream<beast::tcp_stream>> server_;
+    client_stream client_;
+    webcpp::asio::steady_timer deadline_{context_, 5s};
+    beast::flat_buffer server_buffer_;
+    beast::flat_buffer client_buffer_;
+    http::request<http::string_body> request_;
+    const std::string refusal =
+        "HTTP/1.1 403 Forbidden\r\n\r\n" + std::string(std::size_t{1024} * 1024, 'x');
+    const std::string payload{"bounded\0payload", 15};
+    int closed_ = 0;
+    bool finished_ = false;
+
+    void finish() {
+        if (finished_) {
+            return;
+        }
+        finished_ = true;
+        deadline_.cancel();
+        close_checked(listener_);
+        close_checked(beast::get_lowest_layer(client_).socket());
+        close_checked(beast::get_lowest_layer(server_).socket());
+    }
+
+    void expired(error_code ec) {
+        if (!ec) {
+            BOOST_ERROR("Bounded Beast TLS exchange exceeded its deadline");
+            finish();
+        }
+    }
+
+    void accepted(error_code ec) {
+        if (finished_ || !BOOST_TEST(!ec)) {
+            return;
+        }
+        server_.next_layer().async_handshake(
+            ssl::stream_base::server,
+            beast::bind_front_handler(&bounded_exchange::server_ready, this));
+    }
+
+    void server_ready(error_code ec) {
+        if (finished_ || !BOOST_TEST(!ec)) {
+            return;
+        }
+        if (refuse_) {
+            http::async_read(server_.next_layer(), server_buffer_, request_,
+                             beast::bind_front_handler(&bounded_exchange::refuse, this));
+            return;
+        }
+        server_.async_accept(beast::bind_front_handler(&bounded_exchange::upgraded, this));
+    }
+
+    void refuse(error_code ec, [[maybe_unused]] std::size_t bytes) {
+        if (finished_ || !BOOST_TEST(!ec)) {
+            return;
+        }
+        // Ends when the client has dropped the connection.
+        webcpp::asio::async_write(server_.next_layer(), webcpp::asio::buffer(refusal),
+                                  [](error_code, std::size_t) {});
+    }
+
+    void upgraded(error_code ec) {
+        if (!BOOST_TEST(!ec)) {
+            finish();
+            return;
+        }
+        server_.async_read(server_buffer_,
+                           beast::bind_front_handler(&bounded_exchange::echo, this));
+    }
+
+    void echo(error_code ec, [[maybe_unused]] std::size_t bytes) {
+        if (!BOOST_TEST(!ec)) {
+            finish();
+            return;
+        }
+        server_.binary(true);
+        server_.async_write(server_buffer_.data(),
+                            beast::bind_front_handler(&bounded_exchange::echoed, this));
+    }
+
+    void echoed(error_code ec, [[maybe_unused]] std::size_t bytes) {
+        BOOST_TEST(!ec);
+        server_buffer_.consume(server_buffer_.size());
+        server_.async_read(server_buffer_, [this](error_code close_error, std::size_t) {
+            BOOST_TEST(close_error == ws::error::closed);
+            closed(server_.next_layer());
+        });
+    }
+
+    void connected(error_code ec) {
+        if (!BOOST_TEST(!ec)) {
+            finish();
+            return;
+        }
+        auto& tls = client_.next_layer().next_layer();
+        tls.async_handshake(ssl::stream_base::client,
+                            beast::bind_front_handler(&bounded_exchange::client_ready, this));
+    }
+
+    void client_ready(error_code ec) {
+        if (!BOOST_TEST(!ec)) {
+            finish();
+            return;
+        }
+        client_.async_handshake("localhost", "/echo",
+                                beast::bind_front_handler(&bounded_exchange::handshaken, this));
+    }
+
+    void handshaken(error_code ec) {
+        if (refuse_) {
+            BOOST_TEST(ec == http::error::body_limit);
+            finish();
+            return;
+        }
+        if (!BOOST_TEST(!ec)) {
+            finish();
+            return;
+        }
+        client_.binary(true);
+        client_.async_write(webcpp::asio::buffer(payload),
+                            beast::bind_front_handler(&bounded_exchange::sent, this));
+    }
+
+    void sent(error_code ec, [[maybe_unused]] std::size_t bytes) {
+        if (!BOOST_TEST(!ec)) {
+            finish();
+            return;
+        }
+        client_.async_read(client_buffer_,
+                           beast::bind_front_handler(&bounded_exchange::received, this));
+    }
+
+    void received(error_code ec, [[maybe_unused]] std::size_t bytes) {
+        BOOST_TEST(!ec);
+        BOOST_TEST_EQ(beast::buffers_to_string(client_buffer_.data()), payload);
+        client_.async_close(ws::close_code::normal, [this](error_code close_error) {
+            BOOST_TEST(!close_error);
+            closed(client_.next_layer().next_layer());
+        });
+    }
+
+    void closed(beast::ssl_stream<beast::tcp_stream>& tls) {
+        // The WebSocket teardown shut TLS down and closed the transport, through the layer too.
+        const auto state = static_cast<unsigned>(SSL_get_shutdown(tls.native_handle()));
+        BOOST_TEST_NE(state & SSL_SENT_SHUTDOWN, 0);
+        BOOST_TEST_NE(state & SSL_RECEIVED_SHUTDOWN, 0);
+        BOOST_TEST(!beast::get_lowest_layer(tls).socket().is_open());
+        if (++closed_ == 2) {
+            finish();
+        }
+    }
+
+public:
+    bounded_exchange(bool refuse, std::string_view certificate, std::string_view key,
+                     std::string_view authorities, int version)
+        : refuse_(refuse),
+          server_context_(server_context(certificate, key, version)),
+          client_context_(client_context(authorities, true)),
+          server_(context_, server_context_),
+          client_(context_, client_context_) {
+        auto& tls = client_.next_layer().next_layer();
+        error_code ec;
+        BOOST_TEST(!tls.set_verify_callback(ssl::host_name_verification("localhost"), ec));
+        BOOST_TEST(!ec);
+        BOOST_TEST(beast::set_server_name(tls, "localhost").has_value());
+    }
+
+    void run() {
+        deadline_.async_wait(beast::bind_front_handler(&bounded_exchange::expired, this));
+        listener_.async_accept(beast::get_lowest_layer(server_).socket(),
+                               beast::bind_front_handler(&bounded_exchange::accepted, this));
+        beast::get_lowest_layer(client_).async_connect(
+            listener_.local_endpoint(),
+            beast::bind_front_handler(&bounded_exchange::connected, this));
+        context_.run();  // lint-run: bounded real TLS peers share this test context
+        BOOST_TEST(finished_);
+    }
+};
 }  // namespace
 
 int main(int argc, char* const* argv) {
@@ -426,6 +617,12 @@ int main(int argc, char* const* argv) {
          }) {
         std::printf("Beast TLS %s scenario %d\n", argv[4], static_cast<int>(mode));
         exchange current(mode, argv[1], argv[2], argv[3], version);
+        current.run();
+    }
+    for (const bool refuse : {true, false}) {
+        std::printf("Beast TLS %s bounded handshake, %s\n", argv[4],
+                    refuse ? "refused" : "accepted");
+        bounded_exchange current(refuse, argv[1], argv[2], argv[3], version);
         current.run();
     }
     return boost::report_errors();

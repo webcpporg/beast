@@ -27,8 +27,11 @@ webcpp.compile-fail conflicting_policies : config_test.cpp
 webcpp.run message : message_test.cpp ;
 
 webcpp.headers-alone beast : ../include : beast/tcp_stream.hpp beast/websocket.hpp beast/http/read.hpp beast/http/write.hpp
+  beast/websocket/bounded_handshake_stream.hpp
   : <library>/webcpp/beast//sockets : native wasip2 wasip3 emscripten ;
 webcpp.run socket : socket_test.cpp : <library>/webcpp/beast//sockets : native wasip2 wasip3 ;
+webcpp.run handshake : handshake_test.cpp : <library>/webcpp/beast//sockets
+  : native wasip2 wasip3 ;
 
 # One header unit supplies the combined dependencies for aggregate analysis.
 # A browser parse must never acquire guest OpenSSL through that combination.

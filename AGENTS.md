@@ -29,6 +29,11 @@ Read the superproject's [AGENTS.md](../../AGENTS.md) and
   every file hash before lint exempts that corpus's upstream style and notices.
   Change generated application adaptations through their generator, never by
   editing its outputs. Both the adapted sources and their generator are linted.
+- `websocket/bounded_handshake_stream.hpp` bounds a client's handshake response
+  as a next layer, without correcting upstream: native Boost.Beast and the shipped
+  engine keep upstream's 8 MiB. It parses with Beast's own `basic_parser` and starts
+  its transport's operations through function pointers, so that misc-no-recursion
+  sees no cycle through it in a consumer's lint; keep both when changing it.
 - TLS shutdown cancellation tests synchronize on the peer's observed close_notify.
   Cancelling a lowest layer between two internal socket operations is not proof
   that a pending shutdown read was cancelled. WebSocket close already tears down
