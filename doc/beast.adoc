@@ -182,6 +182,52 @@ do not change the compiler configuration or remove upstream Boost overloads; use
 `exception-handling=off` for a complete build without exception handling. Prefer
 upstream error-code overloads when recovery is required.
 
+[#beast-bounded-handshake]
+=== Bound a client's handshake response
+
+A WebSocket client's handshake reads the server's HTTP response with Beast's parser
+and its default limits: 8 KiB of header and, for a response that refuses the upgrade,
+8 MiB of body, in memory no allocator of the program's reaches. Natively that is
+Boost.Beast's own code; on WASI it is the shipped copy of it. A client that connects
+to servers it does not trust places `websocket::bounded_handshake_stream` between the
+WebSocket stream and its transport, from
+`<webcpp/beast/websocket/bounded_handshake_stream.hpp>`, and sets its
+`response_limits`:
+
+[source]
+----
+include::{library-root}/test/handshake_test.cpp[tag=bounded-handshake,indent=0]
+----
+
+The limits default to Beast's 8 KiB of header and 1 KiB after the header of a refusal.
+The handshake is the stream's own, unchanged:
+
+[source]
+----
+include::{library-root}/test/handshake_test.cpp[tag=bounded-handshake-call,indent=0]
+----
+
+A header longer than its bound fails the handshake with `http::error::header_limit`.
+A refusal that declares a longer body fails it with `http::error::body_limit` as soon
+as its header is read, before the handshake reserves that body; one that sends more
+bytes after its header than the bound fails it with the same error. In all, the layer
+reads at most the two bounds of a response. A refusal within them fails with
+`websocket::error::upgrade_declined`, its status and body in the response, as upstream
+does. A 101 response passes through: every later read and write is the transport's.
+
+Over TLS the TLS stream is one layer further down, `ws.next_layer().next_layer()`, for
+its settings and its handshake; teardown after a close is the transport's own. Natively
+and on WASI, a WebSocket stream constructed with `std::allocator_arg` and an allocator
+passes them on to the layer, which keeps there the rare header line that two reads split.
+
+The plain WebSocket stream keeps upstream's limits: natively it is Boost.Beast's own
+type, and the shipped Wasm engine applies no protocol correction. Bounding is a choice
+of the client, and the layer is meant for a client: a server's accept reads a request,
+which the layer refuses as a malformed response. On Emscripten the browser's WebSocket
+reads its own handshake response and exposes none of it to the page. The layer compiles
+there for the guest engine of `<webcpp/beast/websocket/guest.hpp>` over a supplied
+channel; its runtime tests run natively and on WASIp2/P3 only.
+
 [#beast-explanation]
 == Explanation: separate messages from transport
 
@@ -246,6 +292,7 @@ API or transport detail of the original program is available.
 |Explicit supplied-stream counterpart |Borrowed descriptors |CLI input/output; asynchronous WebSocket via pollables |CLI input/output |Caller-supplied channel
 |Raw TCP HTTP/WebSocket listener |Available |Available with network grants |Available |Unavailable
 |Host HTTP WebSocket upgrade |Not applicable |Not provided by host adapter |Use guest socket backend |Browser WebSocket client only
+|Bounded client handshake response |Bounded next layer |Bounded next layer |Bounded next layer |Browser-owned; compiled for a supplied channel
 |Native CPU-parallel threads |Available |Unavailable |Cooperative WASI threads only |Not implied by this backend
 |===
 
@@ -290,6 +337,13 @@ include::application-matrix.adoc[]
 * `socket_test.cpp` exchanges real HTTP and binary WebSocket payloads, completes both
   sides of a close handshake, and verifies a stalled peer reaches the stream timeout.
   Each case has a five-second outer deadline.
+* `handshake_test.cpp` answers a client's upgrade with refusals of a megabyte, declared,
+  streamed and chunked, and with long 101 headers: the bounded layer fails each with
+  Beast's limit error after reading at most its bounds, synchronously too, and a
+  refusal's handshake allocates under 64 KiB. A refusal within the bounds and a 101
+  read seven bytes at a time, through the layer's allocator, complete as upstream's do.
+  `test/tls/protocol.cpp` repeats the refusal and an echo whose TLS shutdown passes
+  through the layer.
 * `ssl_test.cpp` checks SNI copying and rejection without replacing an existing valid
   name. It does not claim that an SNI setting authenticates the peer.
 * `config_test.cpp` checks compiler/global/library exception configuration, both

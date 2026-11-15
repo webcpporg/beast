@@ -106,9 +106,25 @@ public:
      @note This backend does not claim that the supplied allocator controls upstream state.
     */
     template <class Allocator, class... Args>
+        requires(!std::uses_allocator_v<NextLayer, Allocator>)
     explicit stream([[maybe_unused]] std::allocator_arg_t tag,
                     [[maybe_unused]] const Allocator& allocator, Args&&... args)
         : base(std::forward<Args>(args)...) {}
+
+    /**
+     Constructs an allocator-using underlying stream with the allocator, as upstream does natively.
+
+     @tparam Allocator The allocator type, which the underlying stream's `allocator_type` takes.
+     @tparam Args The underlying stream's other constructor argument types.
+     @param tag Passed on to the underlying stream with the allocator.
+     @param allocator The underlying stream's allocator, such as a bounded handshake's.
+     @param args The underlying stream's other constructor arguments.
+     @note Upstream stream-state allocation is unchanged, as with the other allocator constructor.
+    */
+    template <class Allocator, class... Args>
+        requires std::uses_allocator_v<NextLayer, Allocator>
+    explicit stream(std::allocator_arg_t tag, const Allocator& allocator, Args&&... args)
+        : base(tag, allocator, std::forward<Args>(args)...) {}
 };
 #endif  // WEBCPP_TARGET_NATIVE
 }  // namespace webcpp::beast::websocket
