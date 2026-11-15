@@ -282,7 +282,7 @@ public:
      @param host Hostname to match against the recorded destination authority.
      @return Success, or invalid_argument for an invalid server-name record.
      */
-    boost::system::result<void> set_server_name(std::string_view host) {
+    [[nodiscard]] boost::system::result<void> set_server_name(std::string_view host) {
         if (host.empty() || host.size() > 255 || host.find('\0') != std::string_view::npos) {
             return ::webcpp::asio_backend::error::invalid_argument;
         }
@@ -299,7 +299,8 @@ public:
  @return Success, or invalid_argument for an invalid server-name record.
  */
 template <class NextLayer>
-boost::system::result<void> set_server_name(ssl_stream<NextLayer>& stream, std::string_view host) {
+[[nodiscard]] boost::system::result<void> set_server_name(ssl_stream<NextLayer>& stream,
+                                                          std::string_view host) {
     return stream.set_server_name(host);
 }
 }

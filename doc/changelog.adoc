@@ -17,6 +17,7 @@ Changes to the unreleased Beast facade.
 * Fixed browser HTTP and WebSocket transfers with shared Wasm memory.
 * Added current application coverage and shared Release parser measurements.
 * Added a WebSocket client layer that bounds the handshake response it reads.
+* Changed set_server_name to `+[[nodiscard]]+`, so a dropped refusal of a server name is diagnosed.
 // end::unreleased[]
 
 [#beast-changelog-0-1-0]
