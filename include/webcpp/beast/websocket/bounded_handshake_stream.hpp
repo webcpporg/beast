@@ -162,9 +162,15 @@ struct response_limits {
  using transport = beast::ssl_stream<beast::tcp_stream>;
  websocket::stream<websocket::bounded_handshake_stream<transport>> ws(executor, tls);
  ws.next_layer().limits({.body = 0});  // a refusal's body is never read
- // The TLS handshake is one layer further down, then the WebSocket handshake as before.
- ws.next_layer().next_layer().async_handshake(ssl::stream_base::client, on_tls);
- ws.async_handshake(host, target, on_upgrade);
+ // The TLS stream is one layer further down: its handshake first, then the WebSocket one.
+ transport& tls_stream = ws.next_layer().next_layer();
+ tls_stream.async_handshake(ssl::stream_base::client, [&](boost::system::error_code ec) {
+     if (ec) {
+         on_upgrade(ec);
+     } else {
+         ws.async_handshake(host, target, on_upgrade);
+     }
+ });
  @endcode
 
  @tparam NextLayer The transport, an AsyncStream or SyncStream such as `tcp_stream` or

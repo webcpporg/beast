@@ -513,9 +513,9 @@ class bounded_exchange {
             finish();
             return;
         }
-        client_.next_layer().next_layer().async_handshake(
-            ssl::stream_base::client,
-            beast::bind_front_handler(&bounded_exchange::client_ready, this));
+        auto& tls = client_.next_layer().next_layer();
+        tls.async_handshake(ssl::stream_base::client,
+                            beast::bind_front_handler(&bounded_exchange::client_ready, this));
     }
 
     void client_ready(error_code ec) {
