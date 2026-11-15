@@ -38,6 +38,10 @@
 #include <type_traits>
 #include <utility>
 
+#ifdef _MSC_VER
+#include <malloc.h>
+#endif
+
 namespace beast = webcpp::beast;
 namespace http = beast::http;
 namespace websocket = beast::websocket;
@@ -57,12 +61,27 @@ void* allocate(std::size_t size, std::size_t alignment) {
         allocated += size;
     }
     alignment = std::max(alignment, alignof(std::max_align_t));
-    auto* pointer = std::aligned_alloc(
-        alignment, ((std::max(size, std::size_t{1}) + alignment - 1) / alignment) * alignment);
+    const std::size_t bytes =
+        ((std::max(size, std::size_t{1}) + alignment - 1) / alignment) * alignment;
+#ifdef _MSC_VER
+    // The Microsoft C library has no aligned_alloc: _aligned_malloc, which _aligned_free gives
+    // back.
+    void* pointer = _aligned_malloc(bytes, alignment);
+#else
+    void* pointer = std::aligned_alloc(alignment, bytes);
+#endif
     if (pointer == nullptr) {
         boost::throw_exception(std::bad_alloc());
     }
     return pointer;
+}
+
+void release(void* pointer) noexcept {
+#ifdef _MSC_VER
+    _aligned_free(pointer);
+#else
+    std::free(pointer);
+#endif
 }
 }  // namespace
 
@@ -84,36 +103,36 @@ void* operator new[](std::size_t size, std::align_val_t alignment) {
 }
 
 void operator delete(void* pointer) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete[](void* pointer) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete(void* pointer, std::size_t /*unused*/) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete[](void* pointer, std::size_t /*unused*/) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete(void* pointer, std::align_val_t /*unused*/) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete[](void* pointer, std::align_val_t /*unused*/) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete(void* pointer, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 void operator delete[](void* pointer, std::size_t /*unused*/,
                        std::align_val_t /*unused*/) noexcept {
-    std::free(pointer);
+    release(pointer);
 }
 
 // NOLINTEND(readability-inconsistent-declaration-parameter-name)
